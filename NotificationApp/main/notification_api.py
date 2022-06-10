@@ -36,12 +36,6 @@ class NotificationRequest(object):
         self.to = [to] if not iter(to) else to
         self.topic = 'notifications'
 
-    def __call__(self, *args, **kwargs):
-        customer = models.Customer.objects.get(id=kwargs.get('id'))
-        if not customer.is_notified:
-            self.subscribe_to_notifications(customer_token=customer.notify_token,
-            topic=self.topic)
-
     def send_notification(self):
 
         notification = messaging.Notification(self.title, self.body)
@@ -50,5 +44,6 @@ class NotificationRequest(object):
         if not len(sended.success_count) == len(self.to):
             logger.debug('failed to send all notifications.')
             raise NotImplementedError
+
 
 
