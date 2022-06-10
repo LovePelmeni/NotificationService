@@ -31,6 +31,7 @@ ALLOWED_HOSTS = []
 # Application definition
 
 INSTALLED_APPS = [
+
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -40,7 +41,8 @@ INSTALLED_APPS = [
 
     'rest_framework',
     'main',
-    'corsheaders'
+    'corsheaders',
+    'drf_yasg',
 ]
 
 
@@ -97,11 +99,22 @@ if not DEBUG:
             'PASSWORD': 'Kirill',
             'HOST': 'localhost',
             "PORT": '5434'
+        },
+
+        'firebase_notification': {
+            'ENGINE': 'django.db.backends.postgresql_psycopg2',
+            'NAME': 'firebase_db',
+            'USER': 'postgres',
+            'PASSWORD': 'Kirill',
+            'HOST': 'localhost',
+            "PORT": '5434'
         }
     }
+
 else:
     CORS_ALLOW_ALL_ORIGINS = True
     DATABASES = {
+
         'default': {
             'ENGINE': 'django.db.backends.postgresql_psycopg2',
             'NAME': os.environ.get('POSTGRES_DATABASE'),
@@ -109,7 +122,16 @@ else:
             'PASSWORD': os.environ.get("POSTGRES_PASSWORD"),
             'HOST': os.environ.get('POSTGRES_HOST'),
             "PORT": os.environ.get('POSTGRES_PORT')
+        },
+
+        'firebase_notification': {
+            'NAME': os.environ.get('FIREBASE_DATABASE'),
+            'USER': os.environ.get('FIREBASE_USER'),
+            'PASSWORD': os.environ.get("FIREBASE_PASSWORD"),
+            'HOST': os.environ.get('FIREBASE_HOST'),
+            "PORT": os.environ.get('FIREBASE_PORT')
         }
+
     }
 
 # Password validation

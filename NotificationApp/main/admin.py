@@ -7,7 +7,7 @@ class NotificationAdmin(admin.ModelAdmin):
     pass
 
 @admin.register(models.NotificationCustomer)
-class NotificationUserAdmin(admin.ModelAdmin):
+class NotificationCustomerAdmin(admin.ModelAdmin):
     pass
 
 

@@ -1,12 +1,13 @@
 from . import views
 from django.urls import path
 
+app_name = 'main'
 
 urlpatterns = [
 
-    path('', views.home, name='home'),
     path('get/notification/', views.NotificationViewSet.as_view({'get': 'retrieve'})),
     path('create/notification/', views.NotificationViewSet.as_view({'get': 'create'})),
+    path('delete/notification/', views.NotificationViewSet.as_view({'delete': 'destroy'})),
 
 ]
 
@@ -18,4 +19,12 @@ customer_urlpatterns = [
 
 ]
 
+schema_urlpatterns = [
+
+]
+
 urlpatterns += customer_urlpatterns
+urlpatterns += schema_urlpatterns
+
+
+

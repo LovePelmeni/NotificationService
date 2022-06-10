@@ -43,18 +43,12 @@ class NotificationRequest(object):
             topic=self.topic)
 
     def send_notification(self):
-        exceptions = []
+
         notification = messaging.Notification(self.title, self.body)
         messages = [messaging.Message(notification=notification, token=token) for token in self.to]
         sended = messaging.send_all(messages=messages)
-        if len(sended.responses):
-            for response in sended.responses:
-                if hasattr(response, 'exception'):
-                    exceptions.append(response.exception)
-
-
-    def check_delivered(self):
-        pass
-
+        if not len(sended.success_count) == len(self.to):
+            logger.debug('failed to send all notifications.')
+            raise NotImplementedError
 
 

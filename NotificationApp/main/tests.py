@@ -40,6 +40,20 @@ class TestNotificationAPICase(TestCase):
         self.assertEquals(response.status_code, status.HTTP_200_OK)
         self.assertGreater(len(models.Notification.objects.all()), 1)
 
+    @pytest.fixture(scope='module', autouse=True)
+    def notification(self) -> str:
+        pass
+
+    def get_notification_list(self) -> list:
+        pass
+
+    def test_delete_notification(self, notification_token, client):
+
+        response = client.delete('http://localhost:8099/send/' \ 
+        'notification/?notification_idenitifier=%s' % notification_token, timeout=10)
+        self.assertEquals(response.status_code, status.HTTP_200_OK)
+        self.assertLess(len(self.get_notification_list()), 1)
+
 
 class CustomerAPITestCase(TestCase):
 
@@ -65,5 +79,6 @@ class CustomerAPITestCase(TestCase):
         params={'customer_id': self.customer.id}, timeout=10)
         self.assertEquals(response.status_code, status.HTTP_200_OK)
         self.assertLess(len(models.Customer.objects.all()), 1)
+
 
 
