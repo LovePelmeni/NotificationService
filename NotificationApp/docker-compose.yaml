@@ -1,0 +1,46 @@
+version: "3.9"
+
+services:
+
+  nginx:
+    container_name: nginx_container
+    image: nginx:latest
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf
+    ports:
+      - 8098:89
+    depends_on:
+      - application
+    networks:
+      - global_notify_app_network
+
+  application:
+    container_name: application
+    build: .
+    env_file:
+      - ./env_file.env
+    depends_on:
+      - database
+    networks:
+      - global_notify_app_network
+    ports:
+      - 8099:8099
+
+  database:
+    container_name: postgresql_database
+    image: postgres:latest
+    environment:
+      POSTGRES_DB: notification_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: Kirill
+    ports:
+      - 5431:5431
+    command:
+      - -p 5431
+    networks:
+      - global_notify_app_network
+
+networks:
+  global_notify_app_network:
+    external: true
+    name: global_notify_app_network
