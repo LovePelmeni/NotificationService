@@ -2,7 +2,9 @@ from django.db import models
 import firebase_admin
 import django.dispatch.dispatcher
 
+import django.core.exceptions
 from firebase_admin import messaging
+
 # Create your models here.
 
 
@@ -42,15 +44,28 @@ class Notification(models.Model):
 
 
 class CustomerQueryset(models.QuerySet):
+    """
+    / * Represents Customer Manager Class.
+    """
 
     def create(self, **kwargs):
-        pass
+        try:
+            user = self.model(**kwargs)
+            messaging.subscribe_to_topic(tokens=[customer_token],
+            topic=getattr(models, 'topic'), app=getattr(models, 'app'))
+            return user
+        except(django.db.utils.IntegrityError,) as exception:
+            raise exception
 
     def delete(self, **kwargs):
-        pass
+        try:
+            messaging.subscribe_to_topic(tokens=[kwargs.get('customer_token')],
+            topic=getattr(models, 'topic'), app=getattr(models, 'app'))
+            return super().delete()
+        except(django.db.utils.IntegrityError,
+        django.core.exceptions.ObjectDoesNotExist) as exception:
+            raise exception
 
-    def update(self, **kwargs):
-        pass
 
 
 class CustomerManager(django.db.models.manager.BaseManager.from_queryset(queryset_class=CustomerQueryset)):
@@ -62,12 +77,13 @@ class Customer(models.Model):
     objects = CustomerManager()
 
     username = models.CharField(verbose_name='Username', max_length=100, unique=True)
-    notify_token = models.CharField(verbose_name='Notify Token', max_length=100, null=False)
+    notify_token = models.CharField(verbose_name='Notify Token', max_length=100, null=False, editable=False)
     notifications = models.ForeignKey(Notification,
     on_delete=models.CASCADE, related_name='owner', null=True)
     created_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
         return self.username
+
 
 

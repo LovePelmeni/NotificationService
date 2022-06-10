@@ -22,14 +22,21 @@ class CustomerGenericAPIView(generics.GenericAPIView):
     def post(self, request):
         serializer = serializers.CustomerSerializer(request.data)
         if serializers.is_valid(raise_exception=True):
-            models.Customer.objects.create_user(**serializer.validated_data)
+            models.Customer.objects.create(
+            **serializer.validated_data)
 
         logger.debug('new customer has been created.')
         return django.http.HttpResponse(status=status.HTTP_201_CREATED)
 
     @csrf.requires_csrf_token
-    def put(self, request, **kwargs):
-        pass
+    def put(self, request):
+        customer = models.Customer.objects.get(id=request.query_params.get('customer_id'))
+        serializer = serializers.CustomerUpdateSerializer(request.data)
+        if serializers.is_valid(raise_exception=True):
+            for element, value in serializer.validated_data.items():
+                customer.__setattr__(element, value)
+            customer.save()
+        return django.http.HttpResponse(status=200)
 
     @csrf.requires_csrf_token
     def delete(self, request):
@@ -54,22 +61,25 @@ class NotificationViewSet(viewsets.ModelViewSet):
 
     @decorators.action(methods=['post'], detail=False)
     def create(self, request, **kwargs):
+
         from . import notification_api
         notification = notification_api.NotificationRequest(
+
         request.data.get('notification_payload'), title=request.data.get('title'),
-        to=notification_api.NotifyToken())
+        to=notification_api.NotifyToken(request.query_params.get('customer_token')))
 
         if not request.user.notify_token:
-            notification.subscribe_to_notifications(customer_token=request.user.notify_token)
+            notification.subscribe_to_notifications(customer_token=
+            request.user.notify_token, topic=self.topic)
+
         notification.send_notification()
         return django.http.HttpResponse(status=status.HTTP_201_CREATED)
 
     @decorators.action(methods=['delete'], detail=False)
     def delete(self, request):
-        import firebase_admin.db
+        import firebase_admin.messaging
         if request.query_params.get('notification_identifier'):
-            pass
-
+            firebase_admin.messaging.
 
     @decorators.action(methods=['put'], detail=False)
     def update(self, request, *args, **kwargs):
