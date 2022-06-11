@@ -76,51 +76,24 @@ class CustomerAPITestCase(TestCase):
         self.assertRaises(firebase_admin._auth_utils.UserNotFoundError, firebase_customer)
 
 
-# functional tests:
-import contextlib
+class SingleNotificationTestCase(TestCase):
 
-class NotificationDatabaseTriggerTestCase(TestCase):
+    def test_send_single_notification(self, client):
 
-    @pytest.fixture(scope='module')
-    def client(self):
-        yield test.Client()
-
-    @contexlib.contextmanager
-    def get_connection(self):
-        try:
-            with psycopg2.connect() as connection:
-                yield connection
-        except(psycopg2.errors.Error):
-            raise NotImplementedError
-        finally:
-            connection.close()
-
-    def check_trigger_connected(self):
-        try:
-            firebase_notify_db_name = getattr(settings, 'DATABASES')['firebase_notification']['NAME']
-            with self.get_connection() as connection:
-                connections = connection.cursor.execute('SELECT * FROM pg_activity '
-                'WHERE datname = "%s" AND state = "ACTIVE"' % firebase_notify_db_name)
-                yield connections
-        except(NotImplementedError, psycopg2.errors.Error):
-            raise NotImplementedError
-
-    def test_create_database_trigger(self):
-        try:
-            models.NotificationTransactionTriggerListener()
-            with self.check_trigger_connected() as list_connections:
-                self.assertGreater(len(list_connections), 2)
-        except(NotImplementedError,) as exception:
-            raise exception
-
-    @parameterized.parameterized.expand([{}])
-    def test_send_trigger(self, values: dict):
-        try:
-            with self.get_connection() as connection:
-                connection.cursor().execute('INSERT INTO %s () VALUES ()' % (values))
-            self.assertGreater(len(models.Notification.objects.all()), 0)
-        except(psycopg2.errors.Error, AssertionError):
-            raise AssertionError
+        response = client.post('http://localhost:8000/create/customer/',
+        data={'customer_token': ''}, timeout=10)
+        self.assertEquals(response.status_code, status.HTTP_200_OK)
+        self.assertGreater(len(models.Notification.objects.all()), 1)
 
 
+class MultiReceiverNotificationTestCase(TestCase):
+
+    def setUp(self) -> None:
+        self.query = {}
+        self.users = db_models.QuerySet(model=models.Customer, query={})
+        self.receivers = [notification_api.NotifyToken(token=user.token) for user in self.users]
+        self.notification = {}
+
+    def send_multi_user_notification(self):
+        pass
 

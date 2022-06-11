@@ -10,9 +10,11 @@ app_name = 'main'
 
 urlpatterns = [
 
-    path('get/notification/', views.NotificationViewSet.as_view({'get': 'retrieve'})),
-    path('get/notifications/', views.NotificationViewSet.as_view({'get': 'list'})),
-    path('create/notification/', views.NotificationViewSet.as_view({'get': 'create'})),
+    path('get/notification/', views.NotificationSingleViewSet.as_view({'get': 'retrieve'})),
+    path('get/notifications/', views.NotificationSingleViewSet.as_view({'get': 'list'})),
+
+    path('create/single/notification/', views.NotificationSingleViewSet.as_view({'post': 'create'})),
+    path('create/multi/notification/', views.NotificationMultiUserViewSet.as_view({'post': 'create'})),
 
 ]
 

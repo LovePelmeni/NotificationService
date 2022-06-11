@@ -34,6 +34,7 @@ class CustomerGenericAPIView(viewsets.ModelViewSet):
 
         return django.http.HttpResponseServerError()
 
+
     @transaction.atomic
     @csrf.csrf_exempt
     @decorators.action(methods=['post'], detail=False)
@@ -84,27 +85,10 @@ class CustomerGenericAPIView(viewsets.ModelViewSet):
             raise django.core.exceptions.ValidationError
 
 
-class NotificationViewSet(viewsets.ModelViewSet):
 
-    permission_classes = (permissions.IsAuthenticated,)
-    authentication_classes = (authentication.UserAuthenticationClass,)
+class NotificationSingleViewSet(viewsets.ModelViewSet):
+
     queryset = models.Notification.objects.all()
-
-
-    def __init__(self):
-        super(NotificationViewSet, self).__init__()
-
-
-    def get_authenticators(self):
-        from . import authentication
-        return (authentication.UserAuthenticationClass(),)
-
-
-    def check_permissions(self, request):
-        if not 'Authorization' in request.META.keys():
-            return django.core.exceptions.PermissionDenied()
-        return self.get_authenticators()[0].authenticate(request=request)
-
 
     @decorators.action(methods=['get'], detail=True)
     def retrieve(self, request, *args, **kwargs):
@@ -129,16 +113,32 @@ class NotificationViewSet(viewsets.ModelViewSet):
         cls=django.core.serializers.json.DjangoJSONEncoder))
 
 
+    @csrf.csrf_exempt
     @decorators.action(methods=['post'], detail=False)
     def create(self, request, **kwargs):
 
         from . import notification_api
-        notification = notification_api.NotificationRequest(
+        notification = notification_api.NotificationSingleRequest(
 
         request.data.get('notification_payload'), title=request.data.get('title'),
-        to=notification_api.NotifyToken(request.query_params.get('customer_token')))
+        to=notification_api.NotifyToken(request.data.get('customer_token')))
 
         notification.send_notification()
         return django.http.HttpResponse(status=status.HTTP_201_CREATED)
+
+
+class NotificationMultiUserViewSet(viewsets.ModelViewSet):
+    """
+    / * Represents Controller for multiple-destination notifications
+    """
+
+    @decorators.action(methods=['post'], detail=False)
+    def create(self, request, *args, **kwargs):
+        pass
+
+
+
+
+
 
 
