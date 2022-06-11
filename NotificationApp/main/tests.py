@@ -1,4 +1,5 @@
 import firebase_admi, pytest
+import firebase_admin.auth
 from django.test import TestCase
 from django import test
 
@@ -31,6 +32,7 @@ class TestNotificationAPICase(TestCase):
         yield test.Client()
 
     def test_create_notification(self, client):
+
         response = client.post('http://localhost:8099/send/notification/',
         data={'notification_payload': self.notification_payload,
         'title': self.title}, timeout=10, params={'customer_token': self.customer_token})
@@ -45,10 +47,17 @@ class CustomerAPITestCase(TestCase):
         self.customer_data = {}
         self.customer = models.Customer.objects.create(**self.customer_data)
 
-    def create_customer(self, client):
-        response = client.post('http://localhost:8000/create/customer/', timeout=10)
+    @parameterized.parameterized.expand([client, {'email': 'test_email@gmail.com'}])
+    def create_customer(self, client, test_customer_data):
+
+        response = client.post('http://localhost:8000/create/customer/',
+        data=test_customer_data, timeout=10)
+
         self.assertEquals(response.status_code, status.HTTP_200_OK)
         self.assertGreater(len(models.Customer.objects.all()), 1)
+
+        user = firebase_admin.auth.get_user_by_email(email='test_email@gmail.com')
+        self.assertIsNotNone(user)
 
     @parameterized.parameterized.expand([{'username': 'New Nickname'}, client])
     def update_customer(self, updated_data, client=None):
@@ -62,28 +71,56 @@ class CustomerAPITestCase(TestCase):
         self.assertEquals(response.status_code, status.HTTP_200_OK)
         self.assertLess(len(models.Customer.objects.all()), 1)
 
+        firebase_customer = firebase_admin.auth.get_user_by_email(email=self.customer.email)
+        # gets user that suppose does not be existed.
+        self.assertRaises(firebase_admin._auth_utils.UserNotFoundError, firebase_customer)
+
 
 # functional tests:
+import contextlib
 
 class NotificationDatabaseTriggerTestCase(TestCase):
-
-    def setUp(self) -> None:
-        pass
 
     @pytest.fixture(scope='module')
     def client(self):
         yield test.Client()
 
+    @contexlib.contextmanager
+    def get_connection(self):
+        try:
+            with psycopg2.connect() as connection:
+                yield connection
+        except(psycopg2.errors.Error):
+            raise NotImplementedError
+        finally:
+            connection.close()
+
+    def check_trigger_connected(self):
+        try:
+            firebase_notify_db_name = getattr(settings, 'DATABASES')['firebase_notification']['NAME']
+            with self.get_connection() as connection:
+                connections = connection.cursor.execute('SELECT * FROM pg_activity '
+                'WHERE datname = "%s" AND state = "ACTIVE"' % firebase_notify_db_name)
+                yield connections
+        except(NotImplementedError, psycopg2.errors.Error):
+            raise NotImplementedError
+
     def test_create_database_trigger(self):
-        pass
+        try:
+            models.NotificationTransactionTriggerListener()
+            with self.check_trigger_connected() as list_connections:
+                self.assertGreater(len(list_connections), 2)
+        except(NotImplementedError,) as exception:
+            raise exception
 
-    def test_send_trigger(self):
-        pass
-
-    def listen_for_trigger(self):
-        pass
-
-
+    @parameterized.parameterized.expand([{}])
+    def test_send_trigger(self, values: dict):
+        try:
+            with self.get_connection() as connection:
+                connection.cursor().execute('INSERT INTO %s () VALUES ()' % (values))
+            self.assertGreater(len(models.Notification.objects.all()), 0)
+        except(psycopg2.errors.Error, AssertionError):
+            raise AssertionError
 
 
 

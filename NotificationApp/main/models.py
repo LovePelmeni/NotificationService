@@ -49,8 +49,7 @@ class NotificationTransactionTriggerListener(object):
     """
 
     def __init__(self):
-        self.creation_event = 'notification_created'
-        self.deletion_event = 'notification_deleted'
+        self.creation_event = 'notification_created' # connects to database
 
     async def __call__(self, *args, **kwargs):
         """
@@ -103,12 +102,12 @@ class NotificationTransactionTriggerListener(object):
         END;
         $$
     
-        CREATE TRIGGER notification_created 
+        CREATE TRIGGER %s
         AFTER INSERT ON TABLE %s 
         EXECUTE PROCEDURE notification_created_signal()
         
         commit;
-        """ % (getattr(models, 'notification_model'),
+        """ % (getattr(models, 'notification_model'), self.creation_event,
         getattr(models, 'notification_model'))
 
 
@@ -153,6 +152,7 @@ def create_firebase_customer(customer, **kwargs):
         email=customer.email, app=application, disabled=False, email_verified=True)
         customer.notify_token = firebase_customer.uid
         customer.save(using='default')
+
     except(firebase_admin._auth_utils.EmailAlreadyExistsError,):
         logger.debug('User with following email: %s already exists.' % customer.email)
         transaction.rollback(using='default')
@@ -162,7 +162,7 @@ def create_firebase_customer(customer, **kwargs):
 def delete_firebase_customer(customer_id, **kwargs):
     from firebase_admin import auth
     try:
-        customer = models.Customer.objects.get(id=customer_id)
+        customer = Customer.objects.get(id=customer_id)
         auth.delete_user(uid=customer.notify_token)
     except(django.core.exceptions.ObjectDoesNotExist,):
         raise NotImplementedError
@@ -231,6 +231,4 @@ class Customer(models.Model):
     def delete(self, using=None, keep_parents=False):
         UserDeleted.send(sender=self, customer_id=self.id)
         return super().delete(using=using, keep_parents=keep_parents)
-
-
 

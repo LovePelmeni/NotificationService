@@ -32,8 +32,7 @@ class CustomerGenericAPIView(viewsets.ModelViewSet):
         if isinstance(exc, django.core.exceptions.ValidationError):
             return django.http.HttpResponse(status=status.HTTP_400_BAD_REQUEST)
 
-        raise exc
-        # return django.http.HttpResponseServerError()
+        return django.http.HttpResponseServerError()
 
     @transaction.atomic
     @csrf.csrf_exempt
@@ -64,9 +63,11 @@ class CustomerGenericAPIView(viewsets.ModelViewSet):
 
                 customer.save()
             return django.http.HttpResponse(status=200)
-        except(django.db.utils.IntegrityError,) as exception:
+        except(django.db.utils.IntegrityError,
+        django.core.exceptions.ObjectDoesNotExist,):
+
             transaction.rollback()
-            raise exception
+            raise django.core.exceptions.ValidationError
 
 
     @transaction.atomic
@@ -74,15 +75,13 @@ class CustomerGenericAPIView(viewsets.ModelViewSet):
     @decorators.action(methods=['delete'], detail=False)
     def destroy(self, request):
         try:
-            logout(request)
             customer = models.Customer.objects.get(
             id=request.query_params.get('customer_id'))
             customer.delete()
             return django.http.HttpResponse(status=200)
         except(django.core.exceptions.ObjectDoesNotExist,
-        django.db.utils.IntegrityError) as exception:
-            transaction.rollback()
-            raise exception
+        django.db.utils.IntegrityError):
+            raise django.core.exceptions.ValidationError
 
 
 class NotificationViewSet(viewsets.ModelViewSet):
@@ -122,10 +121,8 @@ class NotificationViewSet(viewsets.ModelViewSet):
         import datetime
         import django.core.serializers.json
 
-        queryset = self.get_queryset().annotate(recently_obtained=
-        db_models.ExpressionWrapper(expression=db_models.lookups.LessThan(
-        datetime.datetime.now().weekday - db_models.F('created_at'), 7),
-        output_field=db_models.BooleanField()))
+        queryset = self.get_queryset().annotate(
+        obtained_days_ago='received %s ago' % db_models.F('created_at'))
 
         return django.http.HttpResponse(status=status.HTTP_200_OK,
         content=json.dumps({'notifications': list(queryset.values())},
@@ -143,8 +140,5 @@ class NotificationViewSet(viewsets.ModelViewSet):
 
         notification.send_notification()
         return django.http.HttpResponse(status=status.HTTP_201_CREATED)
-
-
-
 
 
