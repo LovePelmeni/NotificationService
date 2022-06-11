@@ -9,6 +9,7 @@ import django.core.exceptions
 from firebase_admin import messaging
 import logging
 from django.utils.translation import gettext_lazy as _
+from . import certificate
 from django.db import transaction
 logger = logging.getLogger(__name__)
 
@@ -21,7 +22,7 @@ status_choices = [
 topic = 'notifications'
 from django.conf import settings
 
-credentials = firebase_admin.credentials.Certificate(cert=getattr(settings, 'CERTIFICATE_ABSOLUTE_PATH'))
+credentials = firebase_admin.credentials.Certificate(cert=getattr(certificate, 'CERTIFICATE_CREDENTIALS'))
 application = firebase_admin.initialize_app(credential=credentials)
 
 
@@ -66,11 +67,11 @@ def create_firebase_customer(customer, **kwargs):
 
 @django.dispatch.dispatcher.receiver(UserDeleted)
 def delete_firebase_customer(customer_id, **kwargs):
-    from firebase_admin import auth
+    from firebase_admin import auth, _auth_utils
     try:
         customer = Customer.objects.get(id=customer_id)
         auth.delete_user(uid=customer.notify_token)
-    except(django.core.exceptions.ObjectDoesNotExist,):
+    except(django.core.exceptions.ObjectDoesNotExist, _auth_utils.UserNotFound,):
         raise NotImplementedError
 
 

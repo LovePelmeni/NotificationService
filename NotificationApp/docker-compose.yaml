@@ -1,5 +1,4 @@
 version: "3.9"
-
 services:
 
   nginx:
@@ -18,7 +17,7 @@ services:
     container_name: application
     build: .
     env_file:
-      - ./env_file.env
+      - ./project/env_file.env
     depends_on:
       - database
     networks:
@@ -32,23 +31,21 @@ services:
       timeout: 10s
 
   database:
+    restart: unless-stopped
     container_name: postgresql_database
     image: postgres:latest
     environment:
       POSTGRES_DB: notification_db
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: Kirill
-    volumes:
-      - ./postgres/init.d/init.sh:/etc/docker-entrypoint-init.d/init.sh
     ports:
       - 5431:5431
     command:
       - -p 5431
     networks:
       - global_notify_app_network
-
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:5431/"]
+      test: ["CMD", "pg_isready", "-d", "notification_db"]
       retries: 5
       timeout: 10s
       interval: 10s
@@ -56,5 +53,6 @@ services:
 networks:
   global_notify_app_network:
     external: true
-    name: global_notify_app_network
+    name: global_project_network
+
 

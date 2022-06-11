@@ -3,7 +3,21 @@
 echo "Starting Migrations."
 python manage.py makemigrations
 echo "Made."
+if [$? -ne 0]; then
+echo "Failed to run module tests. Exiting..."
+exit 1;
+fi
+
+echo "Migrating..."
 python manage.py migrate
 
-pytest -q ./main/tests.py
-gunicorn NotificationApp.wsgi:application --host 0.0.0.0 --port 8099 --workers 4 --timeout 120
+if [$? -ne 0]; then
+echo "Failed to migrate. Exiting..."
+exit 1;
+fi
+
+gunicorn NotificationApp.wsgi:application --bind 0.0.0.0:8099 --workers 5 --timeout 120
+if [$? -ne 0]; then
+echo "Failed to run module tests. Exiting..."
+exit 1;
+fi

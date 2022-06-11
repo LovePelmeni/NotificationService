@@ -67,8 +67,7 @@ class CustomerGenericAPIView(viewsets.ModelViewSet):
         except(django.db.utils.IntegrityError,
         django.core.exceptions.ObjectDoesNotExist,):
 
-            transaction.rollback()
-            raise django.core.exceptions.ValidationError
+            raise django.core.exceptions.ValidationError(message='Error.')
 
     @transaction.atomic
     @csrf.csrf_exempt
@@ -150,5 +149,6 @@ class NotificationMultiUserViewSet(viewsets.ModelViewSet):
         notification = notification_api.NotificationMultiRequest(receivers=receivers, body=notification_payload)
         notification.send_one_to_many_notification()
         return django.http.HttpResponse(status=status.HTTP_201_CREATED)
+
 
 
