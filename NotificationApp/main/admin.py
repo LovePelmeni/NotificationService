@@ -4,11 +4,16 @@ from . import models
 
 @admin.register(models.Notification)
 class NotificationAdmin(admin.ModelAdmin):
-    pass
+
+    list_display = ('status', "identifier",)
+    fields = ('status', 'identifier',)
+
 
 @admin.register(models.Customer)
 class NotificationCustomerAdmin(admin.ModelAdmin):
-    pass
+
+    list_display = ('username', 'email',)
+    fields = ('username', 'email')
 
 
 

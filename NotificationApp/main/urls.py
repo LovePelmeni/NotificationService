@@ -2,9 +2,8 @@ import drf_yasg.openapi
 
 from . import views
 from django.urls import path
-from drf_yasg import *
 import django.http
-import drf_yasg.views, drf_yasg.openapi
+import drf_yasg.views as drf_yasg_views, drf_yasg.openapi
 
 app_name = 'main'
 
@@ -13,8 +12,8 @@ urlpatterns = [
     path('get/notification/', views.NotificationSingleViewSet.as_view({'get': 'retrieve'})),
     path('get/notifications/', views.NotificationSingleViewSet.as_view({'get': 'list'})),
 
-    path('create/single/notification/', views.NotificationSingleViewSet.as_view({'post': 'create'})),
-    path('create/multi/notification/', views.NotificationMultiUserViewSet.as_view({'post': 'create'})),
+    path('send/single/notification/', views.NotificationSingleViewSet.as_view({'post': 'create'})),
+    path('send/multi/notification/', views.NotificationMultiUserViewSet.as_view({'post': 'create'})),
 
 ]
 
@@ -32,7 +31,7 @@ healthcheck_urlpatterns = [
 
 ]
 
-schema = drf_yasg.views.get_schema_view(
+schema = drf_yasg_views.get_schema_view(
         info=drf_yasg.openapi.Info(
         title='Notification Service',
         description='Service, for handling notifications.',
@@ -42,7 +41,8 @@ schema = drf_yasg.views.get_schema_view(
     )
 )
 schema_urlpatterns = [
-
+    path('swagger/', schema.with_ui('swagger', cache_timeout=0), name='schema-view'),
+    path('redoc/', schema.with_ui('redoc', cache_timeout=0), name='redoc'),
 ]
 
 urlpatterns += customer_urlpatterns

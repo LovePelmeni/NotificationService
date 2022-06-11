@@ -15,6 +15,7 @@ class CustomerSerializer(serializers.ModelSerializer):
             app=getattr(models, 'application')):
                 message = 'Email already exists in firebase.'
                 raise django.core.exceptions.ValidationError(message=message)
+
         except(firebase_admin._auth_utils.UserNotFoundError,):
             return email
         except(django.core.exceptions.ValidationError) as exception:
@@ -37,7 +38,6 @@ class CustomerUpdateSerializer(CustomerSerializer):
             models.Customer.objects.values_list('username', flat=True):
                 continue
         return attrs
-
 
 
 

@@ -70,7 +70,6 @@ class CustomerGenericAPIView(viewsets.ModelViewSet):
             transaction.rollback()
             raise django.core.exceptions.ValidationError
 
-
     @transaction.atomic
     @csrf.csrf_exempt
     @decorators.action(methods=['delete'], detail=False)
@@ -85,10 +84,15 @@ class CustomerGenericAPIView(viewsets.ModelViewSet):
             raise django.core.exceptions.ValidationError
 
 
-
 class NotificationSingleViewSet(viewsets.ModelViewSet):
 
     queryset = models.Notification.objects.all()
+
+
+    def handle_exception(self, exception):
+        if isinstance(exception, django.core.exceptions.ObjectDoesNotExist):
+            return django.http.HttpResponse(status=status.HTTP_404_NOT_FOUND)
+        return django.http.HttpResponseServerError()
 
     @decorators.action(methods=['get'], detail=True)
     def retrieve(self, request, *args, **kwargs):
@@ -118,13 +122,18 @@ class NotificationSingleViewSet(viewsets.ModelViewSet):
     def create(self, request, **kwargs):
 
         from . import notification_api
-        notification = notification_api.NotificationSingleRequest(
+        try:
+            customer_receiver = models.Customer.objects.get(id=request.data.get('customer_id'))
+            notification = notification_api.NotificationSingleRequest(
 
-        request.data.get('notification_payload'), title=request.data.get('title'),
-        to=notification_api.NotifyToken(request.data.get('customer_token')))
+            request.data.get('notification_payload'), title=request.data.get('title'),
+            to=notification_api.NotifyToken(customer_receiver.notify_token))
 
-        notification.send_notification()
-        return django.http.HttpResponse(status=status.HTTP_201_CREATED)
+            notification.send_notification()
+            return django.http.HttpResponse(status=status.HTTP_201_CREATED)
+        except(django.core.exceptions.ObjectDoesNotExist,
+        django.db.utils.IntegrityError,) as exception:
+            raise exception
 
 
 class NotificationMultiUserViewSet(viewsets.ModelViewSet):
@@ -132,13 +141,14 @@ class NotificationMultiUserViewSet(viewsets.ModelViewSet):
     / * Represents Controller for multiple-destination notifications
     """
 
-    @decorators.action(methods=['post'], detail=False)
-    def create(self, request, *args, **kwargs):
-        pass
+    @decorators.action(methods=['post'], detail=False, description='Sends Single Notification for multiple users.')
+    def create(self, request):
+        receivers = [notification_api.NotifyToken(token) for token
+        in json.loads(request.data.get('receivers').split(' '))]
+        notification_payload = request.data.get('notification_payload')
 
-
-
-
-
+        notification = notification_api.NotificationMultiRequest(receivers=receivers, body=notification_payload)
+        notification.send_one_to_many_notification()
+        return django.http.HttpResponse(status=status.HTTP_201_CREATED)
 
 

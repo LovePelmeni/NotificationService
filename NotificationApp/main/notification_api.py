@@ -35,7 +35,7 @@ class InvalidNotifyToken(Exception):
 
 class NotificationMultiRequest(object):
     """/ * Class Represents Interface for sending out
-    one/to/many and many/to/one notifications against user/s"""
+    one/to/many and many/to/one notification against user/s"""
 
     def __init__(self, receivers: typing.List[NotifyToken], body: dict, status='OK', title='Notification'):
         try:
@@ -46,10 +46,6 @@ class NotificationMultiRequest(object):
             assert 'message' in self.body.keys()
         except(KeyError, AssertionError):
             raise NotImplementedError
-
-    def send_many_to_many_notification(self):
-        pass
-
 
     def send_one_to_many_notification(self):
 
@@ -91,14 +87,13 @@ class NotificationSingleRequest(object):
             from . import models
             notification = messaging.Notification(title=self.title, body=self.body)
             messages = messaging.Message(notification=notification, token=self.to, topic=self.topic)
+
             sended_identifier = messaging.send(message=messages, app=getattr(models, 'application'))
             logger.debug('failed to send all notifications.')
+
             models.NotificationCreated.send(self, {'identifier':
             sended_identifier, 'message': self.body['message'], 'receiver': self.to})
 
         except(ValueError, NotImplementedError,):
             raise NotImplementedError
-
-
-
 

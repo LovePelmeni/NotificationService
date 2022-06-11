@@ -1,99 +1,90 @@
-import firebase_admi, pytest
+import firebase_admin, pytest
 import firebase_admin.auth
 from django.test import TestCase
 from django import test
+import parameterized.parameterized
+import django.conf
 
 from rest_framework import status
 from . import models
+from django.conf import settings
 
-# Create your tests here.
-app = firebase_admin.initialize_app(
-credential=firebase_admin.credentials.Certificate('cert.json'))
-notification = {}
+client = test.Client()
 
-# module tests:
+class TestFireBaseMixin(object):
 
-class TestNotificationAPICase(TestCase):
+    def set_notify_token(self, customer_data):
+        import firebase_admin._auth_utils
+        try:
+            import firebase_admin.auth, datetime, uuid
+            generated_uid = str(uuid.uuid4()) + '%s' % datetime.datetime.now()
+            # / * generates unique identifier for
+            # notification client based on user creation data.
+            firebase_customer = firebase_admin.auth.create_user(display_name=customer_data.get('username'),
+            email=customer_data.get('email'), app=getattr(models, 'application'), disabled=False, uid=generated_uid,
+            email_verified=True)
+            generated_token = auth.create_custom_token(uid=firebase_customer.uid,
+            app=getattr(models, 'application'))
+            return generated_token
 
-    def setUp(self) -> None:
+        except(firebase_admin._auth_utils.EmailAlreadyExistsError,):
+            return firebase_admin.auth.get_user_by_email(
+            email=customer_data.get('email'), app=getattr(models, 'application')).uid
 
-        self.notification = {}
-        self.customer_data = {'username': 'SomeUser',
-        'email': 'some_email@gmail.com', 'password': 'SomePassword'}
+    def tearDown(self):
+        try:
+            uid = self.customer.uid if hasattr(self, 'customer') else None
+            firebase_admin.auth.delete_user(uid=uid, app=getattr(models, 'application'))
+        except(firebase_admin._auth_utils.UserNotFoundError,):
+            pass
+        finally:
+            return super().tearDown()
 
-        self.customer_token = models.Customer.objects.create(
-        **self.customer_data).notify_token
-
-        self.notification_payload = {}
-        self.title = 'Test Notification'
-
-    @pytest.fixture(scope='module')
-    def client(self):
-        yield test.Client()
-
-    def test_create_notification(self, client):
-
-        response = client.post('http://localhost:8099/send/notification/',
-        data={'notification_payload': self.notification_payload,
-        'title': self.title}, timeout=10, params={'customer_token': self.customer_token})
-        self.assertEquals(response.status_code, status.HTTP_200_OK)
-        self.assertGreater(len(models.Notification.objects.all()), 1)
-
-
-class CustomerAPITestCase(TestCase):
+class CustomerAPITestCase(TestFireBaseMixin, TestCase):
 
     def setUp(self) -> None:
 
-        self.customer_data = {}
+        self.customer_data = {'username': 'NewUser', 'email': 'new_email@gmail.com'}
+        self.customer_data['notify_token'] = self.set_notify_token(customer_data=self.customer_data)
         self.customer = models.Customer.objects.create(**self.customer_data)
 
-    @parameterized.parameterized.expand([client, {'email': 'test_email@gmail.com'}])
-    def create_customer(self, client, test_customer_data):
+    @parameterized.parameterized.expand([{"username": "AnotherUser"}])
+    def test_create_customer(self, customer_data):
 
         response = client.post('http://localhost:8000/create/customer/',
-        data=test_customer_data, timeout=10)
+        data=customer_data, timeout=10)
 
         self.assertEquals(response.status_code, status.HTTP_200_OK)
         self.assertGreater(len(models.Customer.objects.all()), 1)
 
-        user = firebase_admin.auth.get_user_by_email(email='test_email@gmail.com')
-        self.assertIsNotNone(user)
-
-    @parameterized.parameterized.expand([{'username': 'New Nickname'}, client])
-    def update_customer(self, updated_data, client=None):
+    @parameterized.parameterized.expand([{"username": "AnotherNewUser"}])
+    def test_update_customer(self, updated_data):
         response = client.put('http://localhost:8000/update/customer/',
         data=updated_data, timeout=10)
         self.assertEquals(response.status_code, status.HTTP_200_OK)
 
-    def delete_customer(self, client):
+    def test_delete_customer(self):
         response = client.delete('http://localhost:8099/delete/customer/',
         params={'customer_id': self.customer.id}, timeout=10)
         self.assertEquals(response.status_code, status.HTTP_200_OK)
         self.assertLess(len(models.Customer.objects.all()), 1)
-
-        firebase_customer = firebase_admin.auth.get_user_by_email(email=self.customer.email)
         # gets user that suppose does not be existed.
-        self.assertRaises(firebase_admin._auth_utils.UserNotFoundError, firebase_customer)
 
 
-class SingleNotificationTestCase(TestCase):
-
-    def test_send_single_notification(self, client):
-
-        response = client.post('http://localhost:8000/create/customer/',
-        data={'customer_token': ''}, timeout=10)
-        self.assertEquals(response.status_code, status.HTTP_200_OK)
-        self.assertGreater(len(models.Notification.objects.all()), 1)
-
-
-class MultiReceiverNotificationTestCase(TestCase):
+class SingleNotificationTestCase(TestFireBaseMixin, TestCase):
 
     def setUp(self) -> None:
-        self.query = {}
-        self.users = db_models.QuerySet(model=models.Customer, query={})
-        self.receivers = [notification_api.NotifyToken(token=user.token) for user in self.users]
-        self.notification = {}
+        self.customer_data = {"username": "NeqUser", "email": "NewEmailAddress@gmail.com"}
+        self.notification_data = {"message": "New Message."}
+        self.customer_data['notify_token'] = self.set_notify_token(customer_data=self.customer_data)
+        self.customer = models.Customer.objects.create(**self.customer_data)
 
-    def send_multi_user_notification(self):
-        pass
+    def test_send_single_notification(self):
 
+        response = client.post('http://localhost:8000/send/single/notification/',
+        data={'customer_id': self.customer.notify_token,
+        'notification_payload': self.notification_data,
+        'title': 'Test Title'}, timeout=10)
+
+        self.assertEquals(response.status_code, status.HTTP_200_OK)
+        self.assertGreater(len(models.Notification.objects.all()), 1)

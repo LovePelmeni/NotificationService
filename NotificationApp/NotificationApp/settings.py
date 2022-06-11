@@ -41,8 +41,10 @@ INSTALLED_APPS = [
 
     'rest_framework',
     'main',
+
     'corsheaders',
     'drf_yasg',
+
 ]
 
 
@@ -97,31 +99,23 @@ if DEBUG:
             'HOST': 'localhost',
             "PORT": '5434'
         },
-
-        'firebase_notification': {
-            'ENGINE': 'django.db.backends.postgresql_psycopg2',
-            'NAME': 'firebase_db',
-            'USER': 'postgres',
-            'PASSWORD': 'Kirill',
-            'HOST': 'localhost',
-            "PORT": '5434'
-        }
     }
-    FIREBASE_DATABASE_URL = 'postgresql://%s:%s@%s:%s/%s' % (
-    'postgres', 'Kirill', 'localhost', '5432', 'firebase_db')
 
     CERTIFICATE_ABSOLUTE_PATH = '/Users/kirillklimushin/Downloads/notificationservice-5ce8f-firebase-adminsdk-56jlk-803387b071.json'
 
 else:
     CORS_ALLOW_ALL_ORIGINS = True
-    CORS_ALLOWED_ORIGINS = ["http://%s:3000" % os.environ.get('FRONT_APP_HOST')]
+    CORS_ALLOWED_ORIGINS = ["http://%s:3000" % os.environ.get('FRONT_APP_HOST'),
+    "http://%s:8077" % os.environ.get('SUBSCRIPTION_SERVICE_HOST'),
+    "http://%s:8000" % os.environ.get('PAYMENT_SERVICE_HOST')]
+
     CORS_ALLOW_CREDENTIALS = True
     CORS_CSRF_TRUSTED_ORIGINS = ["http:%s:3000" % os.environ.get('FRONT_APP_HOST')]
     CORS_ALLOWED_HEADERS = ["*"]
     CORS_ALLOWED_METHODS = ["*"]
     DATABASES = {
 
-        'default': {
+         'default': {
             'ENGINE': 'django.db.backends.postgresql_psycopg2',
             'NAME': os.environ.get('POSTGRES_DATABASE'),
             'USER': os.environ.get('POSTGRES_USER'),
@@ -129,19 +123,7 @@ else:
             'HOST': os.environ.get('POSTGRES_HOST'),
             "PORT": os.environ.get('POSTGRES_PORT')
         },
-
-        'firebase_notification': {
-            'NAME': os.environ.get('FIREBASE_DATABASE'),
-            'USER': os.environ.get('FIREBASE_USER'),
-            'PASSWORD': os.environ.get('FIREBASE_USER'),
-            'HOST': os.environ.get('FIREBASE_HOST'),
-            "PORT": os.environ.get('FIREBASE_PORT')
-        }
-
     }
-    FIREBASE_DATABASE_URL = 'postgresql://%s:%s@%s:%s/%s' % (os.environ.get('FIREBASE_USER'),
-    os.environ.get('FIREBASE_USER'), os.environ.get('FIREBASE_HOST'),
-    os.environ.get('FIREBASE_PORT'), os.environ.get('FIREBASE_DATABASE'))
 
     CERTIFICATE_ABSOLUTE_PATH = os.environ.get('FIREBASE_CERTIFICATE_PATH')
 

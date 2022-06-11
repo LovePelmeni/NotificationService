@@ -34,6 +34,10 @@ services:
   database:
     container_name: postgresql_database
     image: postgres:latest
+    environment:
+      POSTGRES_DB: notification_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: Kirill
     volumes:
       - ./postgres/init.d/init.sh:/etc/docker-entrypoint-init.d/init.sh
     ports:
@@ -45,26 +49,6 @@ services:
 
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:5431/"]
-      retries: 5
-      timeout: 10s
-      interval: 10s
-
-  notification_database:
-    container_name: notification_database
-    image: postgres:latest
-    environment:
-      POSTGRES_DB: notification_db
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: Kirill
-
-    ports:
-      - 5430:5430
-    env_file:
-      - env_file.env
-    command:
-      - -p 5430
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:5430/"]
       retries: 5
       timeout: 10s
       interval: 10s
