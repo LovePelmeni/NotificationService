@@ -8,7 +8,8 @@ import django.dispatch.dispatcher
 import django.core.exceptions
 from firebase_admin import messaging
 import logging
-
+from django.utils.translation import gettext_lazy as _
+from django.db import transaction
 logger = logging.getLogger(__name__)
 
 status_choices = [
@@ -18,9 +19,11 @@ status_choices = [
 ]
 
 topic = 'notifications'
+from django.conf import settings
 
-credentials = firebase_admin.credentials.Certificate(cert='./cert.json')
-application = firebase_admin.initialize_app(credential=credentials)
+credentials = firebase_admin.credentials.Certificate(cert=getattr(settings, 'CERTIFICATE_ABSOLUTE_PATH'))
+application = firebase_admin.initialize_app(credential=credentials,
+options={'databaseURL': getattr(settings, 'FIREBASE_DATABASE_URL')})
 
 UserCreated = django.dispatch.dispatcher.Signal()
 UserDeleted = django.dispatch.dispatcher.Signal()
@@ -142,12 +145,17 @@ class NotificationTransactionTriggerListener(object):
 
 
 @django.dispatch.dispatcher.receiver(UserCreated)
+@transaction.atomic
 def create_firebase_customer(customer, **kwargs):
-    from firebase_admin import _user_identifier, auth
-    firebase_customer = auth.create_user(display_name=customer.username,
-    email=customer.email, app=application)
-    customer.identifier = firebase_customer.uid
-    customer.save(using=getattr(settings, 'DATABASES').keys()[0])
+    from firebase_admin import auth
+    try:
+        firebase_customer = auth.create_user(display_name=customer.username,
+        email=customer.email, app=application, disabled=False, email_verified=True)
+        customer.notify_token = firebase_customer.uid
+        customer.save(using='default')
+    except(firebase_admin._auth_utils.EmailAlreadyExistsError,):
+        logger.debug('User with following email: %s already exists.' % customer.email)
+        transaction.rollback(using='default')
 
 
 @django.dispatch.dispatcher.receiver(UserDeleted)
@@ -155,7 +163,7 @@ def delete_firebase_customer(customer_id, **kwargs):
     from firebase_admin import auth
     try:
         customer = models.Customer.objects.get(id=customer_id)
-        auth.delete_user(uid=customer.identifier)
+        auth.delete_user(uid=customer.notify_token)
     except(django.core.exceptions.ObjectDoesNotExist,):
         raise NotImplementedError
 
@@ -178,12 +186,13 @@ class CustomerQueryset(models.QuerySet):
 
     def create(self, **kwargs):
         try:
-            user = self.model(**kwargs)
+            user = self.model(username=kwargs.get('username'),
+            email=kwargs.get('email'))
+            UserCreated.send(sender=self, customer=user)
             user.save(using=self._db)
 
-            messaging.subscribe_to_topic(tokens=[customer_token],
-            topic=getattr(models, 'topic'), app=getattr(models, 'app'))
-            UserCreated.send(sender=self, customer=user)
+            messaging.subscribe_to_topic(tokens=[user.notify_token],
+            topic=topic, app=application)
             return user
         except(django.db.utils.IntegrityError,) as exception:
             raise exception
@@ -208,12 +217,12 @@ class Customer(models.Model):
 
     objects = CustomerManager()
 
-    username = models.CharField(verbose_name='Username', max_length=100, unique=True, editable=False)
+    username = models.CharField(verbose_name='Username', max_length=100, unique=True)
     email = models.EmailField(verbose_name='Email', validators=[validators.EmailValidator,], editable=False, null=False)
     notify_token = models.CharField(verbose_name='Notify Token', max_length=100, null=False, editable=False)
     notifications = models.ForeignKey(Notification,
     on_delete=models.CASCADE, related_name='owner', null=True)
-    created_at = models.DateTimeField(auto_now=True)
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name=_('Created At'))
 
 
     def __str__(self):
@@ -222,7 +231,6 @@ class Customer(models.Model):
     def delete(self, using=None, keep_parents=False):
         UserDeleted.send(sender=self, customer_id=self.id)
         return super().delete(using=using, keep_parents=keep_parents)
-
 
 
 

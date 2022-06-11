@@ -1,26 +1,25 @@
 import contextlib
 
-import firebase_admin.db._sseclient
 from django.shortcuts import render
 import django.http
+from rest_framework import decorators
 
 from rest_framework import viewsets, views, generics, permissions
 from django.views.decorators import csrf
-from . import models, authentication, notification_api
+from . import models, authentication, notification_api, serializers
 
 import django.core.exceptions
 from rest_framework import status, generics
 import logging
 
-
+from django.db import transaction
 logger = logging.getLogger(__name__)
 
 
-class CustomerGenericAPIView(generics.GenericAPIView):
+class CustomerGenericAPIView(viewsets.ModelViewSet):
 
     queryset = models.Customer.objects.all()
-    permission_classes = (permissions.IsAuthenticated,)
-    authentication_classes = (authentication.UserAuthenticationClass,)
+    permission_classes = (permissions.AllowAny,)
 
     def handle_exception(self, exc):
 
@@ -30,32 +29,50 @@ class CustomerGenericAPIView(generics.GenericAPIView):
         if isinstance(exc, django.core.exceptions.PermissionDenied):
             return django.http.HttpResponse(status=status.HTTP_451_UNAVAILABLE_FOR_LEGAL_REASONS)
 
-        return django.http.HttpResponseServerError()
+        if isinstance(exc, django.core.exceptions.ValidationError):
+            return django.http.HttpResponse(status=status.HTTP_400_BAD_REQUEST)
 
-    @csrf.requires_csrf_token
-    def post(self, request):
-        serializer = serializers.CustomerSerializer(request.data)
-        if serializers.is_valid(raise_exception=True):
-            models.Customer.objects.create(
-            **serializer.validated_data)
+        raise exc
+        # return django.http.HttpResponseServerError()
 
-        logger.debug('new customer has been created.')
-        return django.http.HttpResponse(status=status.HTTP_201_CREATED)
+    @transaction.atomic
+    @csrf.csrf_exempt
+    @decorators.action(methods=['post'], detail=False)
+    def create(self, request):
+        try:
+            serializer = serializers.CustomerSerializer(data=request.data, many=False)
+            if serializer.is_valid(raise_exception=True):
+                models.Customer.objects.create(
+                **serializer.validated_data)
 
-    @csrf.requires_csrf_token
-    def put(self, request):
-        customer = models.Customer.objects.get(id=request.query_params.get('customer_id'))
-        serializer = serializers.CustomerUpdateSerializer(request.data)
+            logger.debug('new customer has been created.')
+            return django.http.HttpResponse(status=status.HTTP_201_CREATED)
+        except(django.core.exceptions.ValidationError, django.db.utils.IntegrityError,):
+            raise django.core.exceptions.ValidationError(message='Form is not valid.')
 
-        if serializers.is_valid(raise_exception=True):
-            for element, value in serializer.validated_data.items():
-                customer.__setattr__(element, value)
+    @transaction.atomic
+    @csrf.csrf_exempt
+    @decorators.action(methods=['put'], detail=False)
+    def update(self, request):
+        try:
+            customer = models.Customer.objects.get(id=request.query_params.get('customer_id'))
+            serializer = serializers.CustomerUpdateSerializer(data=request.data, many=False)
 
-            customer.save()
-        return django.http.HttpResponse(status=200)
+            if serializer.is_valid(raise_exception=True):
+                for element, value in serializer.validated_data.items():
+                    customer.__setattr__(element, value)
 
-    @csrf.requires_csrf_token
-    def delete(self, request):
+                customer.save()
+            return django.http.HttpResponse(status=200)
+        except(django.db.utils.IntegrityError,) as exception:
+            transaction.rollback()
+            raise exception
+
+
+    @transaction.atomic
+    @csrf.csrf_exempt
+    @decorators.action(methods=['delete'], detail=False)
+    def destroy(self, request):
         try:
             logout(request)
             customer = models.Customer.objects.get(
@@ -64,22 +81,31 @@ class CustomerGenericAPIView(generics.GenericAPIView):
             return django.http.HttpResponse(status=200)
         except(django.core.exceptions.ObjectDoesNotExist,
         django.db.utils.IntegrityError) as exception:
+            transaction.rollback()
             raise exception
 
 
 class NotificationViewSet(viewsets.ModelViewSet):
 
+    permission_classes = (permissions.IsAuthenticated,)
+    authentication_classes = (authentication.UserAuthenticationClass,)
+    queryset = models.Notification.objects.all()
+
+
     def __init__(self):
         super(NotificationViewSet, self).__init__()
+
 
     def get_authenticators(self):
         from . import authentication
         return (authentication.UserAuthenticationClass(),)
 
+
     def check_permissions(self, request):
         if not 'Authorization' in request.META.keys():
             return django.core.exceptions.PermissionDenied()
         return self.get_authenticators()[0].authenticate(request=request)
+
 
     @decorators.action(methods=['get'], detail=True)
     def retrieve(self, request, *args, **kwargs):
@@ -88,14 +114,15 @@ class NotificationViewSet(viewsets.ModelViewSet):
         return django.http.HttpResponse(status=status.HTTP_200_OK,
         content={'notification': list(notification.values())})
 
+
     @decorators.action(methods=['get'], detail=False)
     def list(self, request, *args, **kwargs):
 
         from django.db import models as db_models
         import datetime
         import django.core.serializers.json
-        queryset = models.Notification.objects.annotate(recently_obtained=
 
+        queryset = self.get_queryset().annotate(recently_obtained=
         db_models.ExpressionWrapper(expression=db_models.lookups.LessThan(
         datetime.datetime.now().weekday - db_models.F('created_at'), 7),
         output_field=db_models.BooleanField()))
@@ -116,12 +143,6 @@ class NotificationViewSet(viewsets.ModelViewSet):
 
         notification.send_notification()
         return django.http.HttpResponse(status=status.HTTP_201_CREATED)
-
-
-
-
-
-
 
 
 

@@ -83,13 +83,10 @@ WSGI_APPLICATION = 'NotificationApp.wsgi.application'
 
 # Database
 # https://docs.djangoproject.com/en/4.0/ref/settings/#databases
-if not DEBUG:
+if DEBUG:
 
-    CORS_ALLOWED_ORIGINS = ["http://%s:3000" % os.environ.get('FRONT_APP_HOST')]
+    CORS_ALLOW_ALL_ORIGINS = True
     CORS_ALLOW_CREDENTIALS = True
-    CORS_CSRF_TRUSTED_ORIGINS = ["http:%s:3000" % os.environ.get('FRONT_APP_HOST')]
-    CORS_ALLOWED_HEADERS = ["*"]
-    CORS_ALLOWED_METHODS = ["*"]
 
     DATABASES = {
         'default': {
@@ -110,9 +107,18 @@ if not DEBUG:
             "PORT": '5434'
         }
     }
+    FIREBASE_DATABASE_URL = 'postgresql://%s:%s@%s:%s/%s' % (
+    'postgres', 'Kirill', 'localhost', '5432', 'firebase_db')
+
+    CERTIFICATE_ABSOLUTE_PATH = '/Users/kirillklimushin/Downloads/notificationservice-5ce8f-firebase-adminsdk-56jlk-803387b071.json'
 
 else:
     CORS_ALLOW_ALL_ORIGINS = True
+    CORS_ALLOWED_ORIGINS = ["http://%s:3000" % os.environ.get('FRONT_APP_HOST')]
+    CORS_ALLOW_CREDENTIALS = True
+    CORS_CSRF_TRUSTED_ORIGINS = ["http:%s:3000" % os.environ.get('FRONT_APP_HOST')]
+    CORS_ALLOWED_HEADERS = ["*"]
+    CORS_ALLOWED_METHODS = ["*"]
     DATABASES = {
 
         'default': {
@@ -127,12 +133,17 @@ else:
         'firebase_notification': {
             'NAME': os.environ.get('FIREBASE_DATABASE'),
             'USER': os.environ.get('FIREBASE_USER'),
-            'PASSWORD': os.environ.get("FIREBASE_PASSWORD"),
+            'PASSWORD': os.environ.get('FIREBASE_USER'),
             'HOST': os.environ.get('FIREBASE_HOST'),
             "PORT": os.environ.get('FIREBASE_PORT')
         }
 
     }
+    FIREBASE_DATABASE_URL = 'postgresql://%s:%s@%s:%s/%s' % (os.environ.get('FIREBASE_USER'),
+    os.environ.get('FIREBASE_USER'), os.environ.get('FIREBASE_HOST'),
+    os.environ.get('FIREBASE_PORT'), os.environ.get('FIREBASE_DATABASE'))
+
+    CERTIFICATE_ABSOLUTE_PATH = os.environ.get('FIREBASE_CERTIFICATE_PATH')
 
 # Password validation
 # https://docs.djangoproject.com/en/4.0/ref/settings/#auth-password-validators

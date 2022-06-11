@@ -1,4 +1,4 @@
-import firebase_admin
+import firebase_admi, pytest
 from django.test import TestCase
 from django import test
 
@@ -10,6 +10,7 @@ app = firebase_admin.initialize_app(
 credential=firebase_admin.credentials.Certificate('cert.json'))
 notification = {}
 
+# module tests:
 
 class TestNotificationAPICase(TestCase):
 
@@ -60,3 +61,29 @@ class CustomerAPITestCase(TestCase):
         params={'customer_id': self.customer.id}, timeout=10)
         self.assertEquals(response.status_code, status.HTTP_200_OK)
         self.assertLess(len(models.Customer.objects.all()), 1)
+
+
+# functional tests:
+
+class NotificationDatabaseTriggerTestCase(TestCase):
+
+    def setUp(self) -> None:
+        pass
+
+    @pytest.fixture(scope='module')
+    def client(self):
+        yield test.Client()
+
+    def test_create_database_trigger(self):
+        pass
+
+    def test_send_trigger(self):
+        pass
+
+    def listen_for_trigger(self):
+        pass
+
+
+
+
+

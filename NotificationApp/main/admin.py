@@ -6,7 +6,7 @@ from . import models
 class NotificationAdmin(admin.ModelAdmin):
     pass
 
-@admin.register(models.NotificationCustomer)
+@admin.register(models.Customer)
 class NotificationCustomerAdmin(admin.ModelAdmin):
     pass
 
