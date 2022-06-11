@@ -10,49 +10,31 @@ app = firebase_admin.initialize_app(
 credential=firebase_admin.credentials.Certificate('cert.json'))
 notification = {}
 
+
 class TestNotificationAPICase(TestCase):
 
     def setUp(self) -> None:
+
         self.notification = {}
+        self.customer_data = {'username': 'SomeUser',
+        'email': 'some_email@gmail.com', 'password': 'SomePassword'}
+
+        self.customer_token = models.Customer.objects.create(
+        **self.customer_data).notify_token
+
+        self.notification_payload = {}
+        self.title = 'Test Notification'
 
     @pytest.fixture(scope='module')
     def client(self):
         yield test.Client()
 
-    @pytest.fixture(scope='module')
-    def notification_client(self):
-        from . import models
-        customer_data = {}
-        user = models.Customer.objects.create(**customer_data)
-        yield user.notify_token
-
-    @staticmethod
-    @pytest.fixture(scope='session', autouse=True)
-    def check_for_notification_errors(notification_client):
-        from firebase_admin import messaging
-        topic_response = messaging.subscribe_to_topic(tokens=[notification_client],
-        topic='notification', app=app)
-        assert not topic_response.errors
-
     def test_create_notification(self, client):
         response = client.post('http://localhost:8099/send/notification/',
-        data=self.notification, timeout=10)
+        data={'notification_payload': self.notification_payload,
+        'title': self.title}, timeout=10, params={'customer_token': self.customer_token})
         self.assertEquals(response.status_code, status.HTTP_200_OK)
         self.assertGreater(len(models.Notification.objects.all()), 1)
-
-    @pytest.fixture(scope='module', autouse=True)
-    def notification(self) -> str:
-        pass
-
-    def get_notification_list(self) -> list:
-        pass
-
-    def test_delete_notification(self, notification_token, client):
-
-        response = client.delete('http://localhost:8099/send/' \ 
-        'notification/?notification_idenitifier=%s' % notification_token, timeout=10)
-        self.assertEquals(response.status_code, status.HTTP_200_OK)
-        self.assertLess(len(self.get_notification_list()), 1)
 
 
 class CustomerAPITestCase(TestCase):
@@ -67,18 +49,14 @@ class CustomerAPITestCase(TestCase):
         self.assertEquals(response.status_code, status.HTTP_200_OK)
         self.assertGreater(len(models.Customer.objects.all()), 1)
 
-    @parameterized.parameterized.expand([{'username': 'New Nickname'}])
+    @parameterized.parameterized.expand([{'username': 'New Nickname'}, client])
     def update_customer(self, updated_data, client=None):
         response = client.put('http://localhost:8000/update/customer/',
         data=updated_data, timeout=10)
         self.assertEquals(response.status_code, status.HTTP_200_OK)
-
 
     def delete_customer(self, client):
         response = client.delete('http://localhost:8099/delete/customer/',
         params={'customer_id': self.customer.id}, timeout=10)
         self.assertEquals(response.status_code, status.HTTP_200_OK)
         self.assertLess(len(models.Customer.objects.all()), 1)
-
-
-

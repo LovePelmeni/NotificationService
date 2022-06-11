@@ -6,8 +6,8 @@ app_name = 'main'
 urlpatterns = [
 
     path('get/notification/', views.NotificationViewSet.as_view({'get': 'retrieve'})),
+    path('get/notifications/', views.NotificationViewSet.as_view({'get': 'list'})),
     path('create/notification/', views.NotificationViewSet.as_view({'get': 'create'})),
-    path('delete/notification/', views.NotificationViewSet.as_view({'delete': 'destroy'})),
 
 ]
 
@@ -25,6 +25,5 @@ schema_urlpatterns = [
 
 urlpatterns += customer_urlpatterns
 urlpatterns += schema_urlpatterns
-
 
 

@@ -35,15 +35,15 @@ class NotificationRequest(object):
         self.title = title
         self.to = [to] if not iter(to) else to
         self.topic = 'notifications'
+        self.icon_url = getattr(settings, 'NOTIFICATION_ICON_URL')
 
     def send_notification(self):
 
-        notification = messaging.Notification(self.title, self.body)
+        notification = messaging.WebpushNotification(title=self.title,
+        body=self.body, language='english', icon=self.icon_url, data=self.body)
         messages = [messaging.Message(notification=notification, token=token) for token in self.to]
         sended = messaging.send_all(messages=messages)
         if not len(sended.success_count) == len(self.to):
             logger.debug('failed to send all notifications.')
             raise NotImplementedError
-
-
 

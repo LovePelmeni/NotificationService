@@ -1,3 +1,5 @@
+import contextlib
+
 import firebase_admin.db._sseclient
 from django.shortcuts import render
 import django.http
@@ -8,9 +10,11 @@ from . import models, authentication, notification_api
 
 import django.core.exceptions
 from rest_framework import status, generics
-
 import logging
+
+
 logger = logging.getLogger(__name__)
+
 
 class CustomerGenericAPIView(generics.GenericAPIView):
 
@@ -54,11 +58,14 @@ class CustomerGenericAPIView(generics.GenericAPIView):
     def delete(self, request):
         try:
             logout(request)
-            request.user.delete()
+            customer = models.Customer.objects.get(
+            id=request.query_params.get('customer_id'))
+            customer.delete()
             return django.http.HttpResponse(status=200)
         except(django.core.exceptions.ObjectDoesNotExist,
         django.db.utils.IntegrityError) as exception:
             raise exception
+
 
 class NotificationViewSet(viewsets.ModelViewSet):
 
@@ -70,10 +77,33 @@ class NotificationViewSet(viewsets.ModelViewSet):
         return (authentication.UserAuthenticationClass(),)
 
     def check_permissions(self, request):
-        if not request.user.is_authenticated or \
-        not 'Authorization' in request.META.keys():
+        if not 'Authorization' in request.META.keys():
             return django.core.exceptions.PermissionDenied()
         return self.get_authenticators()[0].authenticate(request=request)
+
+    @decorators.action(methods=['get'], detail=True)
+    def retrieve(self, request, *args, **kwargs):
+        notification = models.Notification.objects.get(
+        id=request.query_params.get('notification_id'))
+        return django.http.HttpResponse(status=status.HTTP_200_OK,
+        content={'notification': list(notification.values())})
+
+    @decorators.action(methods=['get'], detail=False)
+    def list(self, request, *args, **kwargs):
+
+        from django.db import models as db_models
+        import datetime
+        import django.core.serializers.json
+        queryset = models.Notification.objects.annotate(recently_obtained=
+
+        db_models.ExpressionWrapper(expression=db_models.lookups.LessThan(
+        datetime.datetime.now().weekday - db_models.F('created_at'), 7),
+        output_field=db_models.BooleanField()))
+
+        return django.http.HttpResponse(status=status.HTTP_200_OK,
+        content=json.dumps({'notifications': list(queryset.values())},
+        cls=django.core.serializers.json.DjangoJSONEncoder))
+
 
     @decorators.action(methods=['post'], detail=False)
     def create(self, request, **kwargs):
@@ -87,15 +117,13 @@ class NotificationViewSet(viewsets.ModelViewSet):
         notification.send_notification()
         return django.http.HttpResponse(status=status.HTTP_201_CREATED)
 
-    @decorators.action(methods=['delete'], detail=False)
-    def destroy(self, request):
-        import firebase_admin.db
-        if request.query_params.get('notification_identifier'):
-            pass
 
-    @decorators.action(methods=['put'], detail=False)
-    def update(self, request, *args, **kwargs):
-        pass
+
+
+
+
+
+
 
 
 

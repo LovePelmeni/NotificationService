@@ -17,36 +17,25 @@ status_choices = [
     ('INFO', 'info')
 ]
 
+topic = 'notifications'
 
 credentials = firebase_admin.credentials.Certificate(cert='./cert.json')
 application = firebase_admin.initialize_app(credential=credentials)
 
-
 UserCreated = django.dispatch.dispatcher.Signal()
 UserDeleted = django.dispatch.dispatcher.Signal()
 
-
-class BlockThreadException(threading.Thread, BaseException):
-    """
-    / * Blocks execution thread on raise
-    """
-    def __call__(self, **kwargs):
-        pass
-
-    def block_thread(self):
-        pass
-
 NotificationCreated = django.dispatch.dispatcher.Signal()
-NotificationDeleted = django.dispatch.dispatcher.Signal()
 
 
 @django.dispatch.dispatcher.receiver(NotificationCreated)
-def notification_created():
-    pass
-
-@django.dispatch.dispatcher.receiver(NotificationDeleted)
-def notification_deleted():
-    pass
+def notification_created(notification_payload: dict, identifier=None, **kwargs):
+    try:
+        if not identifier in notification_payload.values():
+            notification_payload['identifier'] = identifier
+        Notification.objects.create(**notification_payload)
+    except(django.db.utils.IntegrityError, django.db.utils.ProgrammingError, ) as exception:
+        logger.debug('COULD NOT CREATE NOTIFICATION. ERROR OCCURRED %s' % exception)
 
 
 
@@ -115,31 +104,9 @@ class NotificationTransactionTriggerListener(object):
         AFTER INSERT ON TABLE %s 
         EXECUTE PROCEDURE notification_created_signal()
         
-        
-        CREATE OR REPLACE FUNCTION notification_deleted_signal()
-        RETURNS TRIGGER;
-        LANGUAGE PLPGSQL 
-        
-        AS $$
-        BEGIN 
-              DECLARE 
-                channel notification_created := TG_ARGV[0];
-            BEGIN 
-                PERFORM 
-                    with payload(msg_id, rev, favs) as (
-                        SELECT pg_notify(channel, raw_to_json(payload)::notification_created)
-                        FROM payload
-                    )
-            RETURN NULL;
-        END;
-        $$
-        
-        CREATE TRIGGER notification_deleted AFTER DELETE ON TABLE %s 
-        EXECUTE PROCEDURE notification_deleted_signal()
-        
         commit;
         """ % (getattr(models, 'notification_model'),
-        getattr(models, 'notification_model'), notification_model)
+        getattr(models, 'notification_model'))
 
 
     async def listen_for_create_transaction(self):
@@ -176,24 +143,28 @@ class NotificationTransactionTriggerListener(object):
 
 @django.dispatch.dispatcher.receiver(UserCreated)
 def create_firebase_customer(customer, **kwargs):
-    from firebase_admin import _user_identifier
-    identifier = firebase_admin._user_identifier.UidIdentifier(uid=uuid.uuid4())
-    customer.identifier = identifier
+    from firebase_admin import _user_identifier, auth
+    firebase_customer = auth.create_user(display_name=customer.username,
+    email=customer.email, app=application)
+    customer.identifier = firebase_customer.uid
     customer.save(using=getattr(settings, 'DATABASES').keys()[0])
 
 
 @django.dispatch.dispatcher.receiver(UserDeleted)
 def delete_firebase_customer(customer_id, **kwargs):
-    pass
-
-
+    from firebase_admin import auth
+    try:
+        customer = models.Customer.objects.get(id=customer_id)
+        auth.delete_user(uid=customer.identifier)
+    except(django.core.exceptions.ObjectDoesNotExist,):
+        raise NotImplementedError
 
 
 class Notification(models.Model):
 
     objects = models.Manager()
     message = models.CharField(verbose_name='Message', max_length=100)
-    status = models.CharField(choices=status_choices, max_length=10)
+    status = models.CharField(choices=status_choices, max_length=10, default='success'.upper())
     created_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
@@ -208,16 +179,19 @@ class CustomerQueryset(models.QuerySet):
     def create(self, **kwargs):
         try:
             user = self.model(**kwargs)
+            user.save(using=self._db)
+
             messaging.subscribe_to_topic(tokens=[customer_token],
             topic=getattr(models, 'topic'), app=getattr(models, 'app'))
+            UserCreated.send(sender=self, customer=user)
             return user
         except(django.db.utils.IntegrityError,) as exception:
             raise exception
 
     def delete(self, **kwargs):
         try:
-            messaging.subscribe_to_topic(tokens=[kwargs.get('customer_token')],
-            topic=getattr(models, 'topic'), app=getattr(models, 'app'))
+            messaging.unsubscribe_from_topic(tokens=[kwargs.get('customer_token')],
+            topic=topic, app=getattr(models, 'app'))
             return super().delete()
         except(django.db.utils.IntegrityError,
         django.core.exceptions.ObjectDoesNotExist) as exception:
@@ -228,19 +202,27 @@ class CustomerQueryset(models.QuerySet):
 class CustomerManager(django.db.models.manager.BaseManager.from_queryset(queryset_class=CustomerQueryset)):
     pass
 
+from django.core import validators
 
 class Customer(models.Model):
 
     objects = CustomerManager()
 
-    username = models.CharField(verbose_name='Username', max_length=100, unique=True)
+    username = models.CharField(verbose_name='Username', max_length=100, unique=True, editable=False)
+    email = models.EmailField(verbose_name='Email', validators=[validators.EmailValidator,], editable=False, null=False)
     notify_token = models.CharField(verbose_name='Notify Token', max_length=100, null=False, editable=False)
     notifications = models.ForeignKey(Notification,
     on_delete=models.CASCADE, related_name='owner', null=True)
     created_at = models.DateTimeField(auto_now=True)
 
+
     def __str__(self):
         return self.username
+
+    def delete(self, using=None, keep_parents=False):
+        UserDeleted.send(sender=self, customer_id=self.id)
+        return super().delete(using=using, keep_parents=keep_parents)
+
 
 
 
