@@ -15,6 +15,10 @@ Using Firebase server as notification delivery.
 
 `Django` as a main framework.
 
+`Nginx` as a web server.
+
+`Gunicorn` as a proxy between application and web server.
+
 --- 
 
 ## Dependencies 
@@ -28,6 +32,8 @@ Using Firebase server as notification delivery.
 `Docker` - 1.41 or less
 
 `Docker-Compose` - 3.9 or above
+
+`Firebase` - have a project or create a new one.
 
 ## Usage
 
@@ -49,6 +55,7 @@ Using Firebase server as notification delivery.
    #main/certificate.py
    
    CERTIFICATE_CREDENTIALS = {<payload of the file>}
+
 ```
 
 #### Go to the `NotificationApp/NotificationApp/settings.py` and set up necessary env variables or you can set `DEBUG=True` in the top of the file.
@@ -62,6 +69,14 @@ Using Firebase server as notification delivery.
 ## Integration via http
 
 ```doctest
+    # api.py
+    
     import requests 
-    response = 
+    SERVICE_HOST = 'APPLICATION DOCKER SERVICE HOST NAME' 
+    # if you run it from the other docker container
+    # make sure that the host is going to be a name
+    # of the docker service, "application" in the current scenario.
+    # Not "localhost"
+    response = requests.get('http://%s:8081/healthcheck/' % SERVICE_HOST)
+    return response.json()
 ```
