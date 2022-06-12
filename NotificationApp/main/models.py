@@ -77,7 +77,7 @@ class CustomerQueryset(models.QuerySet):
             customer.refresh_from_db()
 
             subscription = messaging.subscribe_to_topic(tokens=[customer.notify_token],
-            topic=str(customer.notify_token + "_%s" % customer.username), app=application)
+            topic='notifications', app=application)
 
             if not subscription.success_count and subscription.failure_count:
 

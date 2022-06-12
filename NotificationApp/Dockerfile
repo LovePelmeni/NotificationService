@@ -1,4 +1,5 @@
-FROM python:3.8.13-buster
+ARG ARCH=amd64
+FROM --platform=linux/$ARCH python:3.8.13-buster
 WORKDIR /app/
 
 ENV PYTHONUNBUFFERED=1
@@ -12,5 +13,7 @@ COPY . .
 
 RUN chmod +x entrypoint.sh
 ENTRYPOINT ["sh", "./entrypoint.sh"]
+
+
 
 

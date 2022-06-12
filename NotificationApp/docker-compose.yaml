@@ -25,7 +25,7 @@ services:
     ports:
       - 8099:8099
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8081/healthcheck/"]
+      test: ["CMD", "curl", "-f", "http://localhost:8099/healthcheck/"]
       retries: 5
       interval: 10s
       timeout: 10s

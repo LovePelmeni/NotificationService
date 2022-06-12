@@ -39,8 +39,24 @@ class CustomerSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = models.Customer
-        fields = ('username', "email",)
+        fields = ('username', "email", "notify_token")
 
 
+class NotificationSerializer(serializers.Serializer):
 
+    body = serializers.JSONField(label='Notification Body', required=True)
+    title = serializers.CharField(label='Title', required=True)
+    topic = serializers.CharField(label='Topic', required=False)
+    customer_id = serializers.IntegerField(label='Registration Token', required=True)
+
+    def validate_notification_payload(self, value):
+        import json
+        if not 'message' in json.loads(value).keys():
+            raise django.core.exceptions.ValidationError(message='Invalid Notification Payload')
+        return True
+
+    def validate_customer_id(self, value):
+        if not value in models.Customer.objects.values_list('id', flat=True):
+            return django.core.exceptions.ValidationError(message='Invalid Customer ID')
+        return value
 

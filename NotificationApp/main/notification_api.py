@@ -41,14 +41,15 @@ class NotifyToken(object):
 
 class NotificationModel(pydantic.BaseModel):
 
-    body: dict
-    customer_id: str
-    topic: typing.Optional[str]
-    title: str
+    body: typing.Any
+    customer_id: typing.Any
+    topic: typing.Any
+    title: typing.Any
 
     @pydantic.validator('body', allow_reuse=True)
     def validate_notification_payload(cls, value):
-        if not 'message' in value:
+        import json
+        if not 'message' in json.loads(value).keys():
             raise django.core.exceptions.ValidationError(message='Invalid Notification Payload')
         return True
 
@@ -103,11 +104,11 @@ class NotificationSingleRequest(object):
     / * Class Represents Interface responsible for sending single notification to single user.
     """
 
-    def __init__(self, body: str, title: str,
+    def __init__(self, body: str | dict, title: str,
     to: NotifyToken, topic: typing.Optional[str]):
         import json
         try:
-            self.body = json.loads(body)
+            self.body = json.loads(body) if isinstance(body, str) else body
             self.title = title
             self.token = to.token if hasattr(to, 'token') else None
             self.topic = topic
@@ -165,6 +166,9 @@ class NotificationSingleRequest(object):
                 transaction.rollback()
 
         except(ValueError, NotImplementedError,
-        django.db.utils.InternalError, django.db.utils.IntegrityError) as exception:
+        django.db.utils.InternalError, django.db.utils.IntegrityError, requests.exceptions.HTTPError) as exception:
             logger.debug('%s' % exception)
             raise NotImplementedError
+
+
+
