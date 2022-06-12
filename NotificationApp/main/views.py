@@ -16,6 +16,7 @@ from django.db import transaction
 logger = logging.getLogger(__name__)
 
 
+
 class CustomerGenericAPIView(viewsets.ModelViewSet):
 
     queryset = models.Customer.objects.all()
@@ -32,7 +33,8 @@ class CustomerGenericAPIView(viewsets.ModelViewSet):
         if isinstance(exc, django.core.exceptions.ValidationError):
             return django.http.HttpResponse(status=status.HTTP_400_BAD_REQUEST)
 
-        return django.http.HttpResponseServerError()
+        # return django.http.HttpResponseServerError()
+        raise exc
 
 
     @transaction.atomic
@@ -47,7 +49,12 @@ class CustomerGenericAPIView(viewsets.ModelViewSet):
 
             logger.debug('new customer has been created.')
             return django.http.HttpResponse(status=status.HTTP_201_CREATED)
-        except(django.core.exceptions.ValidationError, django.db.utils.IntegrityError,):
+
+        except(django.core.exceptions.ValidationError,) as exception:
+            raise exception
+
+        except(django.db.utils.IntegrityError,):
+            transaction.rollback()
             raise django.core.exceptions.ValidationError(message='Form is not valid.')
 
     @transaction.atomic
@@ -66,7 +73,7 @@ class CustomerGenericAPIView(viewsets.ModelViewSet):
             return django.http.HttpResponse(status=200)
         except(django.db.utils.IntegrityError,
         django.core.exceptions.ObjectDoesNotExist,):
-
+            transaction.rollback()
             raise django.core.exceptions.ValidationError(message='Error.')
 
     @transaction.atomic
@@ -91,7 +98,8 @@ class NotificationSingleViewSet(viewsets.ModelViewSet):
     def handle_exception(self, exception):
         if isinstance(exception, django.core.exceptions.ObjectDoesNotExist):
             return django.http.HttpResponse(status=status.HTTP_404_NOT_FOUND)
-        return django.http.HttpResponseServerError()
+        # return django.http.HttpResponseServerError()
+        raise exception
 
     @decorators.action(methods=['get'], detail=True)
     def retrieve(self, request, *args, **kwargs):
@@ -125,7 +133,7 @@ class NotificationSingleViewSet(viewsets.ModelViewSet):
             customer_receiver = models.Customer.objects.get(id=request.data.get('customer_id'))
             notification = notification_api.NotificationSingleRequest(
 
-            request.data.get('notification_payload'), title=request.data.get('title'),
+            body=request.data.get('notification_payload'), title=request.data.get('title'),
             to=notification_api.NotifyToken(customer_receiver.notify_token))
 
             notification.send_notification()
@@ -149,6 +157,3 @@ class NotificationMultiUserViewSet(viewsets.ModelViewSet):
         notification = notification_api.NotificationMultiRequest(receivers=receivers, body=notification_payload)
         notification.send_one_to_many_notification()
         return django.http.HttpResponse(status=status.HTTP_201_CREATED)
-
-
-

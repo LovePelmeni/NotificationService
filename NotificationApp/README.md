@@ -32,7 +32,7 @@ Using Firebase server as notification delivery.
 ## Usage
 
 ```bash
-    git clone <notification_repo>
+    git clone https://github.com/LovePelmeni/NotificationService.git
 ```
 
 #### Make Sure you set up integration points for Firebase
@@ -43,9 +43,15 @@ Using Firebase server as notification delivery.
    Follow Link: [Create New Firebase Project]("http://firebase.com/)
 
 ---
-2. #### Replace `CERTIFICATE_ABSOLUTE_PATH` variable in
-   #### NotificationApp/NotificationApp/settings.py
-   #### with `root` to your certificate.json file
+2. #### Create File called `certificate.py` in NotificationApp/main dir.
+   #### Create `CERTIFICATE_CREDENTIALS` const and add the payload from the `cert.json` file. 
+```doctest
+   #main/certificate.py
+   
+   CERTIFICATE_CREDENTIALS = {<payload of the file>}
+```
+
+#### Go to the `NotificationApp/NotificationApp/settings.py` and set up necessary env variables or you can set `DEBUG=True` in the top of the file.
 
 ---
 3. #### Run Docker-Compose.yaml file in the root directory.

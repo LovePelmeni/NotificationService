@@ -1,6 +1,7 @@
 from __future__ import annotations
 import typing
 
+import django.db.utils
 import firebase_admin.auth, firebase_admin.exceptions
 from firebase_admin import messaging
 
@@ -73,13 +74,15 @@ class NotificationSingleRequest(object):
     to: NotifyToken):
 
         try:
-            self.body = body
+            import json
+            self.body = json.loads(body) if isinstance(body, str) else body
             self.title = title
             self.to = to.token if hasattr(to, 'notify_token') else None
             self.topic = 'notifications'
-            assert 'message' in body.keys()
+            print(self.body)
 
-        except(AssertionError, InvalidNotifyToken, AttributeError):
+
+        except(AssertionError, InvalidNotifyToken, AttributeError, json.JSONDecodeError,):
             raise NotImplementedError
 
     def send_notification(self):
@@ -90,10 +93,12 @@ class NotificationSingleRequest(object):
 
             sended_identifier = messaging.send(message=messages, app=getattr(models, 'application'))
             logger.debug('failed to send all notifications.')
+            with transaction.atomic():
+                models.Notification.objects.create(**{'identifier':
+                sended_identifier, 'message': self.body['message'], 'receiver': self.to})
 
-            models.NotificationCreated.send(self, {'identifier':
-            sended_identifier, 'message': self.body['message'], 'receiver': self.to})
-
-        except(ValueError, NotImplementedError,):
+        except(ValueError, NotImplementedError,
+        django.db.utils.InternalError, django.db.utils.IntegrityError) as exception:
+            logger.debug('%s' % exception)
             raise NotImplementedError
 

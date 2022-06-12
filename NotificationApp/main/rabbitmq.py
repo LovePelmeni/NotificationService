@@ -1,4 +1,5 @@
-import pika.exceptions
+import pika.exceptions, io
+
 
 class RabbitmqConnection(object):
     """

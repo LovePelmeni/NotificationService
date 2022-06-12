@@ -101,8 +101,6 @@ if DEBUG:
         },
     }
 
-    CERTIFICATE_ABSOLUTE_PATH = '/Users/kirillklimushin/Downloads/notificationservice-5ce8f-firebase-adminsdk-56jlk-803387b071.json'
-
 else:
     CORS_ALLOW_ALL_ORIGINS = True
     CORS_ALLOWED_ORIGINS = ["http://%s:3000" % os.environ.get('FRONT_APP_HOST'),
@@ -124,8 +122,6 @@ else:
             "PORT": os.environ.get('POSTGRES_PORT')
         },
     }
-
-    CERTIFICATE_ABSOLUTE_PATH = os.environ.get('FIREBASE_CERTIFICATE_PATH')
 
 # Password validation
 # https://docs.djangoproject.com/en/4.0/ref/settings/#auth-password-validators
