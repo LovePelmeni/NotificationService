@@ -20,7 +20,6 @@ urlpatterns = [
 customer_urlpatterns = [
 
     path('create/customer/', views.CustomerGenericAPIView.as_view({'post': 'create'}), name='create-customer'),
-    path('update/customer/', views.CustomerGenericAPIView.as_view({'put': 'update'}), name='update-customer'),
     path('delete/customer/', views.CustomerGenericAPIView.as_view({'delete': 'destroy'}), name='delete-customer')
 
 ]

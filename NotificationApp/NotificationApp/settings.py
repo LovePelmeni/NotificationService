@@ -100,6 +100,7 @@ if DEBUG:
             "PORT": '5434'
         },
     }
+    WEB_API_KEY = 'AIzaSyC0SMpVHS-v49h15PfgpyG3ihX-_OG79Go'
 
 else:
     CORS_ALLOW_ALL_ORIGINS = True
@@ -111,6 +112,7 @@ else:
     CORS_CSRF_TRUSTED_ORIGINS = ["http:%s:3000" % os.environ.get('FRONT_APP_HOST')]
     CORS_ALLOWED_HEADERS = ["*"]
     CORS_ALLOWED_METHODS = ["*"]
+
     DATABASES = {
 
          'default': {
@@ -122,6 +124,7 @@ else:
             "PORT": os.environ.get('POSTGRES_PORT')
         },
     }
+    WEB_API_KEY = os.environ.get('WEB_API_KEY')
 
 # Password validation
 # https://docs.djangoproject.com/en/4.0/ref/settings/#auth-password-validators

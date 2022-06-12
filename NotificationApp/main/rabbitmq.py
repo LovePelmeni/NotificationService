@@ -1,4 +1,5 @@
-import pika.exceptions, io
+import pika.exceptions
+import firebase_admin.auth
 
 
 class RabbitmqConnection(object):

@@ -1,4 +1,4 @@
-import contextlib
+import typing, pydantic
 
 from django.shortcuts import render
 import django.http
@@ -6,7 +6,7 @@ from rest_framework import decorators
 
 from rest_framework import viewsets, views, generics, permissions
 from django.views.decorators import csrf
-from . import models, authentication, notification_api, serializers
+from . import models, authentication, notification_api, serializers, exceptions
 
 import django.core.exceptions
 from rest_framework import status, generics
@@ -14,7 +14,6 @@ import logging
 
 from django.db import transaction
 logger = logging.getLogger(__name__)
-
 
 
 class CustomerGenericAPIView(viewsets.ModelViewSet):
@@ -33,14 +32,14 @@ class CustomerGenericAPIView(viewsets.ModelViewSet):
         if isinstance(exc, django.core.exceptions.ValidationError):
             return django.http.HttpResponse(status=status.HTTP_400_BAD_REQUEST)
 
-        # return django.http.HttpResponseServerError()
-        raise exc
+        return django.http.HttpResponseServerError()
 
 
     @transaction.atomic
     @csrf.csrf_exempt
     @decorators.action(methods=['post'], detail=False)
     def create(self, request):
+        import rest_framework.exceptions
         try:
             serializer = serializers.CustomerSerializer(data=request.data, many=False)
             if serializer.is_valid(raise_exception=True):
@@ -50,31 +49,14 @@ class CustomerGenericAPIView(viewsets.ModelViewSet):
             logger.debug('new customer has been created.')
             return django.http.HttpResponse(status=status.HTTP_201_CREATED)
 
-        except(django.core.exceptions.ValidationError,) as exception:
+        except(django.core.exceptions.ValidationError,
+        rest_framework.exceptions.ValidationError,) as exception:
+            transaction.rollback()
             raise exception
 
         except(django.db.utils.IntegrityError,):
             transaction.rollback()
             raise django.core.exceptions.ValidationError(message='Form is not valid.')
-
-    @transaction.atomic
-    @csrf.csrf_exempt
-    @decorators.action(methods=['put'], detail=False)
-    def update(self, request):
-        try:
-            customer = models.Customer.objects.get(id=request.query_params.get('customer_id'))
-            serializer = serializers.CustomerUpdateSerializer(data=request.data, many=False)
-
-            if serializer.is_valid(raise_exception=True):
-                for element, value in serializer.validated_data.items():
-                    customer.__setattr__(element, value)
-
-                customer.save()
-            return django.http.HttpResponse(status=200)
-        except(django.db.utils.IntegrityError,
-        django.core.exceptions.ObjectDoesNotExist,):
-            transaction.rollback()
-            raise django.core.exceptions.ValidationError(message='Error.')
 
     @transaction.atomic
     @csrf.csrf_exempt
@@ -94,12 +76,16 @@ class NotificationSingleViewSet(viewsets.ModelViewSet):
 
     queryset = models.Notification.objects.all()
 
-
     def handle_exception(self, exception):
+
+        import firebase_admin.exceptions
         if isinstance(exception, django.core.exceptions.ObjectDoesNotExist):
             return django.http.HttpResponse(status=status.HTTP_404_NOT_FOUND)
-        # return django.http.HttpResponseServerError()
-        raise exception
+
+        if issubclass(exception.__class__, firebase_admin.exceptions.FirebaseError):
+            return django.http.HttpResponse(status=status.HTTP_424_FAILED_DEPENDENCY)
+
+        return django.http.HttpResponseServerError()
 
     @decorators.action(methods=['get'], detail=True)
     def retrieve(self, request, *args, **kwargs):
@@ -130,16 +116,20 @@ class NotificationSingleViewSet(viewsets.ModelViewSet):
 
         from . import notification_api
         try:
-            customer_receiver = models.Customer.objects.get(id=request.data.get('customer_id'))
-            notification = notification_api.NotificationSingleRequest(
+            notification_data = notification_api.NotificationModel(request.data).dict()
+            customer_receiver = models.Customer.objects.get(
 
-            body=request.data.get('notification_payload'), title=request.data.get('title'),
-            to=notification_api.NotifyToken(customer_receiver.notify_token))
+            id=notification_data['customer_id']).notify_token
+            del notification_data['customer_id']
+
+            notification = notification_api.NotificationSingleRequest(
+            **notification_data, to=notification_api.NotifyToken(token=customer_receiver))
 
             notification.send_notification()
             return django.http.HttpResponse(status=status.HTTP_201_CREATED)
+
         except(django.core.exceptions.ObjectDoesNotExist,
-        django.db.utils.IntegrityError,) as exception:
+        django.db.utils.IntegrityError, exceptions.FCMSubscriptionError,) as exception:
             raise exception
 
 
@@ -150,10 +140,11 @@ class NotificationMultiUserViewSet(viewsets.ModelViewSet):
 
     @decorators.action(methods=['post'], detail=False, description='Sends Single Notification for multiple users.')
     def create(self, request):
+
         receivers = [notification_api.NotifyToken(token) for token
         in json.loads(request.data.get('receivers').split(' '))]
-        notification_payload = request.data.get('notification_payload')
 
+        notification_payload = request.data.get('notification_payload')
         notification = notification_api.NotificationMultiRequest(receivers=receivers, body=notification_payload)
         notification.send_one_to_many_notification()
         return django.http.HttpResponse(status=status.HTTP_201_CREATED)

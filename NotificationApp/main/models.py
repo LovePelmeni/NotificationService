@@ -9,7 +9,7 @@ import django.core.exceptions
 from firebase_admin import messaging
 import logging
 from django.utils.translation import gettext_lazy as _
-from . import certificate
+from . import certificate, exceptions
 from django.db import transaction
 logger = logging.getLogger(__name__)
 
@@ -54,27 +54,40 @@ class CustomerQueryset(models.QuerySet):
     / * Represents Customer Manager Class.
     """
 
+    def rollback_firebase_transaction(self, uid):
+        import firebase_admin._auth_utils
+        try:
+            import firebase_admin.auth
+            return firebase_admin.auth.delete_user(uid=uid, app=application)
+        except(firebase_admin._auth_utils.UserNotFoundError,):
+            logger.error('could not remove Customer Firebase Profile: uid = %s' % uid)
+
+
+    @transaction.atomic
     def create(self, **kwargs):
-        import jwt
+        import jwt, firebase_admin.exceptions
         try:
             from firebase_admin import messaging
             from firebase_admin import auth
             import datetime
 
-            registration_token = jwt.encode({'email': kwargs.get('email')}, algorithm='HS256', key=settings.SECRET_KEY)
             customer = self.model(username=kwargs.get('username'), email=kwargs.get('email'))
-            # / * generates unique identifier for
-            # notification client based on user creation data.
-            auth.create_user(display_name=customer.username,
-            email=customer.email, app=application, disabled=False,
-            uid=registration_token, email_verified=True)
-
-            customer.notify_token = registration_token
+            customer.notify_token = kwargs.get('notify_token')
             customer.save(using=self._db)
             customer.refresh_from_db()
 
-            messaging.subscribe_to_topic(tokens=[customer.notify_token],
-            topic=topic, app=application)
+            subscription = messaging.subscribe_to_topic(tokens=[customer.notify_token],
+            topic=str(customer.notify_token + "_%s" % customer.username), app=application)
+
+            if not subscription.success_count and subscription.failure_count:
+
+                logger.error('Failed To Subscribe on topic: Error: %s' %
+                list('%s, %s' % (error.reason, error.index)
+                for error in subscription._errors if hasattr(error, 'reason')))
+
+                self.rollback_firebase_transaction(uid=customer.notify_token)
+                raise exceptions.FCMSubscriptionError()
+
             return customer
 
         except(django.db.utils.IntegrityError, jwt.PyJWTError,) as exception:
@@ -82,22 +95,19 @@ class CustomerQueryset(models.QuerySet):
 
         except(ValueError,) as exception:
             logger.error('exception: %s' % exception)
-            pass
-
-    def update(self, **kwargs):
-        return super().update(**kwargs)
-
-    def delete(self, **kwargs):
-        try:
-            messaging.unsubscribe_from_topic(tokens=[kwargs.get('customer_token')],
-            topic=topic, app=getattr(models, 'app'))
-            return super().delete()
-        except(django.db.utils.IntegrityError,
-        django.core.exceptions.ObjectDoesNotExist) as exception:
             raise exception
+
+        except(exceptions.FCMSubscriptionError,) as exception:
+            raise exception
+
+        except(firebase_admin.exceptions.InvalidArgumentError) as exception:
+            logger.debug('Invalid FCM Token has been obtained...')
+            raise exception
+
 
 class CustomerManager(django.db.models.manager.BaseManager.from_queryset(queryset_class=CustomerQueryset)):
     pass
+
 
 from django.core import validators
 
@@ -107,7 +117,7 @@ class Customer(models.Model):
 
     username = models.CharField(verbose_name=_('Username'), max_length=100, unique=True)
     email = models.EmailField(verbose_name=_('Email'), validators=[validators.EmailValidator,], editable=False, null=False)
-    notify_token = models.CharField(verbose_name=_('Notify Token'), max_length=1000, null=False, editable=True)
+    notify_token = models.CharField(verbose_name=_('Notify Token'), max_length=128, null=False, editable=False)
     notifications = models.ForeignKey(Notification,
     on_delete=models.CASCADE, related_name='owner', null=True)
     created_at = models.DateTimeField(auto_now_add=True, verbose_name=_('Created At'))
@@ -119,12 +129,12 @@ class Customer(models.Model):
     def delete(self, using=None, keep_parents=False, **kwargs):
         import firebase_admin._auth_utils
         try:
-            import io
             from firebase_admin import auth
+            messaging.unsubscribe_from_topic(tokens=[self.notify_token],
+            topic=topic, app=getattr(models, 'app'))
             auth.delete_user(uid=self.notify_token)
             return super().delete(using=using, keep_parents=keep_parents)
         except(firebase_admin._auth_utils.UserNotFoundError,):
             raise NotImplementedError
-
 
 

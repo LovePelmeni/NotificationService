@@ -1,14 +1,23 @@
 from __future__ import annotations
-import typing
+import typing, pydantic
 
+from django.conf import settings
 import django.db.utils
+
 import firebase_admin.auth, firebase_admin.exceptions
 from firebase_admin import messaging
+from django.db import transaction
 
-from . import models
+from . import models, certificate
 import logging
 
+
 logger = logging.getLogger(__name__)
+
+
+class InvalidNotifyToken(Exception):
+    pass
+
 
 class NotifyToken(object):
     """
@@ -30,8 +39,32 @@ class NotifyToken(object):
             message=json.dumps({'error': 'Your Token Is Expired. %s' % self.user_token}))
 
 
-class InvalidNotifyToken(Exception):
-    pass
+class NotificationModel(pydantic.BaseModel):
+
+    body: dict
+    customer_id: str
+    topic: typing.Optional[str]
+    title: str
+
+    @pydantic.validator('body', allow_reuse=True)
+    def validate_notification_payload(cls, value):
+        if not 'message' in value:
+            raise django.core.exceptions.ValidationError(message='Invalid Notification Payload')
+        return True
+
+
+def check_valid_token(token: str) -> bool:
+    import requests
+    try:
+        response = requests.post('https://fcm.googleapis.com/fcm/send',
+            headers={'Content-Type': 'application/json', 'Authorization': 'Bearer %s'
+            % getattr(settings, 'WEB_API_KEY')}, timeout=10, data={'registration_ids': '[%s]' % token})
+        if not response.status_code in (200, 201):
+            return False
+        return True
+    except() as exception:
+        logger.debug('invalid token: %s' % exception)
+        raise firebase_admin.exceptions.InternalError(message='Invalid FCM Token')
 
 
 class NotificationMultiRequest(object):
@@ -70,35 +103,68 @@ class NotificationSingleRequest(object):
     / * Class Represents Interface responsible for sending single notification to single user.
     """
 
-    def __init__(self, body: dict, title: str,
-    to: NotifyToken):
-
+    def __init__(self, body: str, title: str,
+    to: NotifyToken, topic: typing.Optional[str]):
+        import json
         try:
-            import json
-            self.body = json.loads(body) if isinstance(body, str) else body
+            self.body = json.loads(body)
             self.title = title
-            self.to = to.token if hasattr(to, 'notify_token') else None
-            self.topic = 'notifications'
-            print(self.body)
+            self.token = to.token if hasattr(to, 'token') else None
+            self.topic = topic
 
-
-        except(AssertionError, InvalidNotifyToken, AttributeError, json.JSONDecodeError,):
+        except(AssertionError, InvalidNotifyToken, AttributeError, json.decoder.JSONDecodeError,):
             raise NotImplementedError
+
+
+    def get_authorized_session(self):
+
+        from google.oauth2 import service_account
+        from google.auth.transport.requests import AuthorizedSession
+        SCOPES = ['https://www.googleapis.com/auth/firebase.messaging']
+        credentials = service_account.Credentials.from_service_account_info(
+        info=getattr(certificate, 'CERTIFICATE_CREDENTIALS'), scopes=SCOPES)
+        session = AuthorizedSession(credentials=credentials)
+        return session
+
 
     def send_notification(self):
         try:
             from . import models
-            notification = messaging.Notification(title=self.title, body=self.body)
-            messages = messaging.Message(notification=notification, token=self.to, topic=self.topic)
+            import json, requests
 
-            sended_identifier = messaging.send(message=messages, app=getattr(models, 'application'))
-            logger.debug('failed to send all notifications.')
-            with transaction.atomic():
-                models.Notification.objects.create(**{'identifier':
-                sended_identifier, 'message': self.body['message'], 'receiver': self.to})
+            message = json.dumps({
+                "message": {
+                    "topic": self.topic,
+                    "token": self.token,
+                    "notification": {
+                        'title': self.title,
+                        'body': self.body.get('message'),
+                    },
+                },
+            })
+            session = self.get_authorized_session()
+            response = session.request(method='post',
+                url='https://fcm.googleapis.com/v1/projects/%s/messages:send'
+                % getattr(certificate, 'CERTIFICATE_CREDENTIALS')['project_id'],
+                headers={'Content-Type': 'application/json'},
+                timeout=10, data=message
+            )
+            response.raise_for_status()
+            try:
+                with transaction.atomic():
+                    status = 'SUCCESS' if str(response.status_code) in ('200', '201') else 'ERROR'
+                    assert status not in ('ERROR', 'FAILED')
+                    models.Notification.objects.create(
+                        **{'identifier': json.loads(response.text)['name'],
+                        'message': self.body['message'],
+                        'receiver': self.to,
+                        'status': status
+                    })
+
+            except(AssertionError,):
+                transaction.rollback()
 
         except(ValueError, NotImplementedError,
         django.db.utils.InternalError, django.db.utils.IntegrityError) as exception:
             logger.debug('%s' % exception)
             raise NotImplementedError
-
