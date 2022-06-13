@@ -1,4 +1,6 @@
 # Notification Service
+
+---
 #### docs link: [API Documentation]("http://localhost:8099/swagger/)
 #### download docs: [JSON API Docs file]("http://localhost:8099/swagger/json/")
 
@@ -51,20 +53,43 @@ Using Firebase server as notification delivery.
 ---
 2. #### Create File called `certificate.py` in NotificationApp/main dir.
    #### Create `CERTIFICATE_CREDENTIALS` const and add the payload from the `cert.json` file. 
+
+
 ```doctest
    #main/certificate.py
    
    CERTIFICATE_CREDENTIALS = {<payload of the file>}
 
 ```
-
-#### Go to the `NotificationApp/NotificationApp/settings.py` and set up necessary env variables or you can set `DEBUG=True` in the top of the file.
-
 ---
-3. #### Run Docker-Compose.yaml file in the root directory.
+
+## If Production Mode
+#### Go to the `NotificationApp/project/env_file.env` and set up necessary env variables.
+##### After that run docker compose file in the main directory.
 ```doctest
     docker-compose up -d 
 ```
+
+---
+
+## If Debug Mode
+
+#### After all procedures that you've made before you need to run.
+   
+```doctest
+   # Directory: NotificationService/NotificationApp/
+   
+   python manage.py makemigrations --database backup_database 
+   python manage.py migrate 
+   
+   python manage.py makemigrations --database backup_database 
+   python manage.py migrate 
+   
+   python manage.py runserver
+   
+   
+```
+
 
 ## Integration via http
 

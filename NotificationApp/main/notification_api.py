@@ -10,6 +10,7 @@ from django.db import transaction
 
 from . import models, certificate
 import logging
+from django.conf import settings
 
 
 logger = logging.getLogger(__name__)
@@ -37,21 +38,6 @@ class NotifyToken(object):
         except(firebase_admin.exceptions.NotFoundError):
             raise firebase_admin.exceptions.NotFoundError(
             message=json.dumps({'error': 'Your Token Is Expired. %s' % self.user_token}))
-
-
-class NotificationModel(pydantic.BaseModel):
-
-    body: typing.Any
-    customer_id: typing.Any
-    topic: typing.Any
-    title: typing.Any
-
-    @pydantic.validator('body', allow_reuse=True)
-    def validate_notification_payload(cls, value):
-        import json
-        if not 'message' in json.loads(value).keys():
-            raise django.core.exceptions.ValidationError(message='Invalid Notification Payload')
-        return True
 
 
 def check_valid_token(token: str) -> bool:
@@ -95,8 +81,8 @@ class NotificationMultiRequest(object):
             logger.debug('failed to send message: "%s". to all Members.' % self.body['message'])
             raise NotImplementedError
 
-        models.NotificationCreated.send(self, {'identifier':
-        sended_identifier, 'message': self.body['message'], 'receiver': json.dumps(self.to)})
+        models.Notification.objects.using(settings.MAIN_DATABASE).create(**{'identifier':
+        sended_identifier, 'message': self.body['message'], 'receiver': json.dumps(self.receivers)})
 
 
 class NotificationSingleRequest(object):
@@ -125,13 +111,14 @@ class NotificationSingleRequest(object):
         credentials = service_account.Credentials.from_service_account_info(
         info=getattr(certificate, 'CERTIFICATE_CREDENTIALS'), scopes=SCOPES)
         session = AuthorizedSession(credentials=credentials)
-        return session
+        yield session
 
 
     def send_notification(self):
+        import requests.exceptions
         try:
             from . import models
-            import json, requests
+            import json
 
             message = json.dumps({
                 "message": {
@@ -143,19 +130,21 @@ class NotificationSingleRequest(object):
                     },
                 },
             })
-            session = self.get_authorized_session()
-            response = session.request(method='post',
-                url='https://fcm.googleapis.com/v1/projects/%s/messages:send'
-                % getattr(certificate, 'CERTIFICATE_CREDENTIALS')['project_id'],
-                headers={'Content-Type': 'application/json'},
-                timeout=10, data=message
-            )
-            response.raise_for_status()
+
+            with self.get_authorized_session() as session:
+                response = session.request(method='post',
+                    url='https://fcm.googleapis.com/v1/projects/%s/messages:send'
+                    % getattr(certificate, 'CERTIFICATE_CREDENTIALS')['project_id'],
+                    headers={'Content-Type': 'application/json'},
+                    timeout=10, data=message
+                )
+                response.raise_for_status()
+
             try:
                 with transaction.atomic():
                     status = 'SUCCESS' if str(response.status_code) in ('200', '201') else 'ERROR'
                     assert status not in ('ERROR', 'FAILED')
-                    models.Notification.objects.create(
+                    models.Notification.objects.using(settings.MAIN_DATABASE).create(
                         **{'identifier': json.loads(response.text)['name'],
                         'message': self.body['message'],
                         'receiver': self.to,
@@ -169,6 +158,5 @@ class NotificationSingleRequest(object):
         django.db.utils.InternalError, django.db.utils.IntegrityError, requests.exceptions.HTTPError) as exception:
             logger.debug('%s' % exception)
             raise NotImplementedError
-
 
 

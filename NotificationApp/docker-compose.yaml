@@ -20,6 +20,7 @@ services:
       - ./project/env_file.env
     depends_on:
       - database
+      - backup_database
     networks:
       - global_notify_app_network
     ports:
@@ -49,6 +50,26 @@ services:
       retries: 5
       timeout: 10s
       interval: 10s
+
+  backup_database:
+    restart: unless-stopped
+    container_name: backup_database
+    image: postgres:latest
+    environment:
+      POSTGRES_DB: backup_database
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: Kirill
+    healthcheck:
+      test: ["CMD", "pg_isready", "-d", "backup_database"]
+      retries: 5
+      timeout: 10s
+      interval: 10s
+    command:
+      - -p 5433
+    ports:
+      - 5430:5433
+    networks:
+      - global_notify_app_network
 
 networks:
   global_notify_app_network:

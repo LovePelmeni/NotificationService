@@ -23,7 +23,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = 'django-insecure-ldw^bsszn512@2l9m!3w5pge#1m#g&01yp(ig3kra3bz)kjdn3'
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = False
+DEBUG = True
 
 ALLOWED_HOSTS = ["*"]
 
@@ -90,8 +90,12 @@ if DEBUG:
     CORS_ALLOW_ALL_ORIGINS = True
     CORS_ALLOW_CREDENTIALS = True
 
+    BACKUP_DATABASE = 'backup_database'
+    MAIN_DATABASE = 'default'
+
     DATABASES = {
-        'default': {
+
+        MAIN_DATABASE: {
             'ENGINE': 'django.db.backends.postgresql_psycopg2',
             'NAME': 'notification_db',
             'USER': 'postgres',
@@ -99,10 +103,20 @@ if DEBUG:
             'HOST': 'localhost',
             "PORT": '5434'
         },
+        BACKUP_DATABASE : {
+            'ENGINE': 'django.db.backends.postgresql_psycopg2',
+            'NAME': 'backup_database',
+            'USER': 'postgres',
+            'PASSWORD': 'Kirill',
+            'HOST': 'localhost',
+            "PORT": '5434'
+        }
     }
+
     WEB_API_KEY = 'AIzaSyC0SMpVHS-v49h15PfgpyG3ihX-_OG79Go'
 
 else:
+
     CORS_ALLOW_ALL_ORIGINS = True
     CORS_ALLOWED_ORIGINS = ["http://%s:3000" % os.environ.get('FRONT_APP_HOST'),
     "http://%s:8077" % os.environ.get('SUBSCRIPTION_SERVICE_HOST'),
@@ -113,9 +127,12 @@ else:
     CORS_ALLOWED_HEADERS = ["*"]
     CORS_ALLOWED_METHODS = ["*"]
 
+    BACKUP_DATABASE = 'backup_database'
+    MAIN_DATABASE = 'default'
+
     DATABASES = {
 
-         'default': {
+         MAIN_DATABASE: {
             'ENGINE': 'django.db.backends.postgresql_psycopg2',
             'NAME': os.environ.get('POSTGRES_DATABASE'),
             'USER': os.environ.get('POSTGRES_USER'),
@@ -123,6 +140,15 @@ else:
             'HOST': os.environ.get('POSTGRES_HOST'),
             "PORT": os.environ.get('POSTGRES_PORT')
         },
+
+        BACKUP_DATABASE: {
+            'ENGINE': 'django.db.backends.postgresql_psycopg2',
+            'NAME': 'notification_backup_db',
+            'USER': os.environ.get('BACKUP_POSTGRES_USER'),
+            'PASSWORD': os.environ.get('BACKUP_POSTGRES_PASSWORD'),
+            'HOST': os.environ.get('BACKUP_POSTGRES_HOST'),
+            "PORT": os.environ.get('BACKUP_POSTGRES_PORT')
+        }
     }
     WEB_API_KEY = os.environ.get('WEB_API_KEY')
 

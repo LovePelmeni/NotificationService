@@ -11,6 +11,7 @@ import logging
 from django.utils.translation import gettext_lazy as _
 from . import certificate, exceptions
 from django.db import transaction
+
 logger = logging.getLogger(__name__)
 
 status_choices = [
@@ -24,13 +25,6 @@ from django.conf import settings
 
 credentials = firebase_admin.credentials.Certificate(cert=getattr(certificate, 'CERTIFICATE_CREDENTIALS'))
 application = firebase_admin.initialize_app(credential=credentials)
-
-
-from firebase_admin import firestore
-database_client = firestore.client(app=application)
-
-USER_DATABASE = database_client.collections(u'users', timeout=10)
-NOTIFICATION_DATABASE = database_client.collections(u'notifications', timeout=10)
 
 
 class Notification(models.Model):
@@ -73,8 +67,8 @@ class CustomerQueryset(models.QuerySet):
 
             customer = self.model(username=kwargs.get('username'), email=kwargs.get('email'))
             customer.notify_token = kwargs.get('notify_token')
-            customer.save(using=self._db)
-            customer.refresh_from_db()
+            customer.save(using=settings.MAIN_DATABASE)
+            customer.refresh_from_db(using=settings.MAIN_DATABASE)
 
             subscription = messaging.subscribe_to_topic(tokens=[customer.notify_token],
             topic='notifications', app=application)
@@ -126,6 +120,15 @@ class Customer(models.Model):
     def __str__(self):
         return self.username
 
+    def create_backup(self):
+        Customer.objects.create(username=self.username,
+        email=self.email, notify_token=self.notify_token, created_at=self.created_at)
+
+    def save(self, force_insert=False, force_update=False, using=None, update_fields=None):
+        asgiref.sync.sync_to_async(self.create_backup)(self) # asynchronously making backup.
+        return super().save(using=using, force_update=force_update,
+        force_insert=force_insert, update_fields=update_fields)
+
     def delete(self, using=None, keep_parents=False, **kwargs):
         import firebase_admin._auth_utils
         try:
@@ -134,7 +137,11 @@ class Customer(models.Model):
             topic=topic, app=getattr(models, 'app'))
             auth.delete_user(uid=self.notify_token)
             return super().delete(using=using, keep_parents=keep_parents)
+
         except(firebase_admin._auth_utils.UserNotFoundError,):
             raise NotImplementedError
+
+
+
 
 

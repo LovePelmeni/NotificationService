@@ -34,7 +34,6 @@ class CustomerGenericAPIView(viewsets.ModelViewSet):
 
         return django.http.HttpResponseServerError()
 
-
     @transaction.atomic
     @csrf.csrf_exempt
     @decorators.action(methods=['post'], detail=False)
@@ -43,7 +42,7 @@ class CustomerGenericAPIView(viewsets.ModelViewSet):
         try:
             serializer = serializers.CustomerSerializer(data=request.data, many=False)
             if serializer.is_valid(raise_exception=True):
-                models.Customer.objects.create(
+                models.Customer.objects.using(settings.MAIN_DATABASE).create(
                 **serializer.validated_data)
 
             logger.debug('new customer has been created.')
@@ -61,7 +60,7 @@ class CustomerGenericAPIView(viewsets.ModelViewSet):
     @decorators.action(methods=['delete'], detail=False)
     def destroy(self, request):
         try:
-            customer = models.Customer.objects.get(
+            customer = models.Customer.objects.using(settings.MAIN_DATABASE).get(
             id=request.query_params.get('customer_id'))
             customer.delete()
             return django.http.HttpResponse(status=200)
@@ -83,20 +82,19 @@ class NotificationSingleViewSet(viewsets.ModelViewSet):
         if issubclass(exception.__class__, firebase_admin.exceptions.FirebaseError):
             return django.http.HttpResponse(status=status.HTTP_424_FAILED_DEPENDENCY)
 
-        return django.http.HttpResponseServerError()
-
+        raise exception
+        # return django.http.HttpResponseServerError()
 
     @decorators.action(methods=['get'], detail=True)
     def retrieve(self, request, *args, **kwargs):
         from django.db import models as db_models
         from . import models
         import json
-        notification = list(models.Notification.objects.filter(
+        notification = list(models.Notification.objects.using(settings.MAIN_DATABASE).filter(
         id=request.query_params.get('notification_id')).values())
         return django.http.HttpResponse(status=status.HTTP_200_OK,
         content=json.dumps({'notification': notification},
         cls=django.core.serializers.json.DjangoJSONEncoder))
-
 
     @decorators.action(methods=['get'], detail=False)
     def list(self, request, *args, **kwargs):
@@ -151,4 +149,6 @@ class NotificationMultiUserViewSet(viewsets.ModelViewSet):
         notification = notification_api.NotificationMultiRequest(receivers=receivers, body=notification_payload)
         notification.send_one_to_many_notification()
         return django.http.HttpResponse(status=status.HTTP_201_CREATED)
+
+
 

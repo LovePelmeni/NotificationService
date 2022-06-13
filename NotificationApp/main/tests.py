@@ -1,5 +1,8 @@
+import unittest.mock
+
 import firebase_admin, pytest
 import firebase_admin.auth
+import pika
 from django.test import TestCase
 
 from django import test
@@ -97,3 +100,43 @@ class SingleNotificationTestCase(TestCase):
 
 
 
+class RabbitMQTransactionTestCase(TestCase):
+    pass
+
+
+class RabbitMQTransactionIntegrationTestCase(unittest.TestCase):
+
+    def setUp(self) -> None:
+        from . import rabbitmq
+        self.CustomerHandler = rabbitmq.CustomerRabbitMQMessageHandler
+        self.RabbitmqConnection = rabbitmq.RabbitMQConnection
+
+    @pytest.fixture(scope='module')
+    def connection(self):
+        yield self.RabbitmqConnection.connect_to_server()
+
+    def handle_response(self, queue, method, properties, body, connection):
+
+        connection.close()
+        self.assertEquals(self.rabbitmq_event_object['body'], body)
+        self.assertEquals(self.rabbitmq_eventobject['queue'], queue.method.queue)
+        self.assertEquals(self.rabbitmq_event_object['method'], method)
+
+    @pytest.fixture(scope='module')
+    def rabbitmq_event(self):
+        event = {'properties': pika.BasicProperties(headers={'METHOD': 'POST'})}
+        return event
+
+    def test_react_on_failure_event(self, rabbitmq_event, connection):
+
+        self.rabbitmq_event_object = rabbitmq_event
+        self.CustomerHandler.handle_customer_message(**mocked_event)
+
+        connection.basic_consume(on_message_callback=self.handle_response)
+        connection.start_consuming()
+
+        self.assertRaises(NotImplementedError)
+
+
+class RabbitMQTransactionFunctionalTestCase(unittest.FunctionTestCase):
+    pass

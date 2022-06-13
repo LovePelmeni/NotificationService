@@ -4,6 +4,7 @@ from . import views
 from django.urls import path
 import django.http
 import drf_yasg.views as drf_yasg_views, drf_yasg.openapi
+from rest_framework import permissions
 
 app_name = 'main'
 
@@ -37,14 +38,22 @@ schema = drf_yasg_views.get_schema_view(
         default_version='1.0',
         contact=drf_yasg.openapi.Contact('kirklimushin@gmail.com'),
         license=drf_yasg.openapi.License('BSD License'),
-    )
+    ),
+    public=True,
+    permission_classes = (permissions.AllowAny,)
 )
+
 schema_urlpatterns = [
+
     path('swagger/', schema.with_ui('swagger', cache_timeout=0), name='schema-view'),
-    path('redoc/', schema.with_ui('redoc', cache_timeout=0), name='redoc'),
+    path('redoc/', schema.with_ui('redoc', cache_timeout=0), name='schema-redoc'),
+
 ]
 
 urlpatterns += customer_urlpatterns
 urlpatterns += schema_urlpatterns
 urlpatterns += healthcheck_urlpatterns
+
+
+
 
