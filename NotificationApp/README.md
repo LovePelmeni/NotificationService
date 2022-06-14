@@ -7,11 +7,12 @@
 --- 
 
 `Notification Service` - Service, responsible for Notification Delivery,
-Using Firebase server as notification delivery.
+Using Firebase server as notification delivery. (Communicates via HTTP REST and Asynchronous Events via RabbitMQ queues.)
+
 
 ## Technologies
 
-`PostgresSQL` as a database.
+`PostgresSQL` as a main database.
 
 `Firebase` as a notification server.
 
@@ -20,6 +21,8 @@ Using Firebase server as notification delivery.
 `Nginx` as a web server.
 
 `Gunicorn` as a proxy between application and web server.
+
+`RabbitMQ` cluster,  integrated for distributed communication within multiple services.
 
 --- 
 

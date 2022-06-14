@@ -1,3 +1,4 @@
+import typing
 import unittest.mock
 
 import firebase_admin, pytest
@@ -98,45 +99,88 @@ class SingleNotificationTestCase(TestCase):
         self.assertEquals(response.status_code, status.HTTP_200_OK)
         self.assertIn('notification', json.loads(response.read()).keys())
 
+# import pika.callback
+#
+# class RabbitMQHeaders(dict):
+#
+#     def __enter__(self, *args, **kwargs):
+#         assert all([element in () for element in kwargs.keys()])
+#         assert all([value.upper() in () for value in list(kwargs.values())])
+#         return kwargs
+#
+#
+# class TestRabbitmqQueueEvent(object):
+#
+#     def __init__(self, queue, method, properties: pika.BasicProperties):
+#
+#         try:
+#             self.queue: str = queue
+#             self.method: str = method
+#             self.properties = pika.BasicProperties(
+#             content_type='application/json',
+#             headers=RabbitMQHeaders(**properties.headers))
+#         except(AssertionError,):
+#             raise ValueError
 
-
-class RabbitMQTransactionTestCase(TestCase):
-    pass
-
-
-class RabbitMQTransactionIntegrationTestCase(unittest.TestCase):
-
-    def setUp(self) -> None:
-        from . import rabbitmq
-        self.CustomerHandler = rabbitmq.CustomerRabbitMQMessageHandler
-        self.RabbitmqConnection = rabbitmq.RabbitMQConnection
-
-    @pytest.fixture(scope='module')
-    def connection(self):
-        yield self.RabbitmqConnection.connect_to_server()
-
-    def handle_response(self, queue, method, properties, body, connection):
-
-        connection.close()
-        self.assertEquals(self.rabbitmq_event_object['body'], body)
-        self.assertEquals(self.rabbitmq_eventobject['queue'], queue.method.queue)
-        self.assertEquals(self.rabbitmq_event_object['method'], method)
-
-    @pytest.fixture(scope='module')
-    def rabbitmq_event(self):
-        event = {'properties': pika.BasicProperties(headers={'METHOD': 'POST'})}
-        return event
-
-    def test_react_on_failure_event(self, rabbitmq_event, connection):
-
-        self.rabbitmq_event_object = rabbitmq_event
-        self.CustomerHandler.handle_customer_message(**mocked_event)
-
-        connection.basic_consume(on_message_callback=self.handle_response)
-        connection.start_consuming()
-
-        self.assertRaises(NotImplementedError)
-
-
-class RabbitMQTransactionFunctionalTestCase(unittest.FunctionTestCase):
-    pass
+# class RabbitMQIntegrationTestCase(TestCase):
+#
+#     def setUp(self) -> None:
+#         from . import rabbitmq
+#         self.rabbitmq_handler = rabbitmq.CustomerRabbitMQMessageHandler
+#
+#     @pytest.fixture(scope='module')
+#     def connection_channel(self):
+#         from . import rabbitmq
+#         yield rabbitmq.RabbitMQConnection.connect_to_server()
+#
+#     def send_event(self):
+#         pass
+#
+#     def test_connection(self, connection_channel):
+#         pass
+#
+#     def test_queues(self, connection_channel):
+#         pass
+#
+#     @unittest.mock.patch('main.test.send_event', autospec=True)
+#     def test_callback(self, event):
+#         self.mocked_event = event
+#         self.rabbitmq_handler.handle_customer_message(queue=event.queue,
+#         method=event.method, properties=event.properties, body=event.body)
+#         self.assertGreater(len(models.Customer.objects.all()), 0)
+#
+#
+# class RabbitMQTransactionIntegrationTestCase(unittest.TestCase):
+#
+#     def setUp(self) -> None:
+#         from . import rabbitmq
+#         self.CustomerHandler = rabbitmq.CustomerRabbitMQMessageHandler
+#         self.RabbitmqConnection = rabbitmq.RabbitMQConnection
+#
+#     @pytest.fixture(scope='module')
+#     def connection(self):
+#         yield self.RabbitmqConnection.connect_to_server()
+#
+#     def handle_response(self, queue, method, properties, body, connection):
+#
+#         connection.close()
+#         self.assertEquals(self.rabbitmq_event_object['body'], body)
+#         self.assertEquals(self.rabbitmq_eventobject['queue'], queue.method.queue)
+#         self.assertEquals(self.rabbitmq_event_object['method'], method)
+#
+#     @pytest.fixture(scope='module')
+#     def rabbitmq_event(self):
+#         event = {'properties': pika.BasicProperties(headers={'METHOD': 'POST'}),
+#         'queue': 'customer_queue', 'method': 'method', 'body': {}}
+#         return event
+#
+#     def test_react_on_failure_event(self, rabbitmq_event, connection):
+#
+#         self.rabbitmq_event_object = rabbitmq_event
+#         self.CustomerHandler.handle_customer_message(**mocked_event)
+#
+#         connection.basic_consume(on_message_callback=self.handle_response)
+#         connection.start_consuming()
+#
+#         self.assertRaises(NotImplementedError)
+#

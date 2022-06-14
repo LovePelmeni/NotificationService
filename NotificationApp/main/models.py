@@ -12,6 +12,8 @@ from django.utils.translation import gettext_lazy as _
 from . import certificate, exceptions
 from django.db import transaction
 
+from cached_property import cached_property
+
 logger = logging.getLogger(__name__)
 
 status_choices = [
@@ -36,11 +38,15 @@ class Notification(models.Model):
     status = models.CharField(verbose_name=_('Notification Status'),
     choices=status_choices, max_length=10, default='success'.upper())
 
-    created_at = models.DateTimeField(auto_now_add=True)
+    created_at = models.DateTimeField(verbose_name=_("Created At"), auto_now_add=True)
     receiver = models.CharField(verbose_name=_('Receiver FCM Token'), max_length=100)
 
     def __str__(self):
         return self.message
+
+    @cached_property
+    def get_identifier(self):
+        return self.identifier
 
 
 class CustomerQueryset(models.QuerySet):
@@ -113,12 +119,16 @@ class Customer(models.Model):
     email = models.EmailField(verbose_name=_('Email'), validators=[validators.EmailValidator,], editable=False, null=False)
     notify_token = models.CharField(verbose_name=_('Notify Token'), max_length=128, null=False, editable=False)
     notifications = models.ForeignKey(Notification,
-    on_delete=models.CASCADE, related_name='owner', null=True)
+    on_delete=models.CASCADE, related_name='owner', null=True, verbose_name=_('Notifications'))
     created_at = models.DateTimeField(auto_now_add=True, verbose_name=_('Created At'))
 
 
     def __str__(self):
         return self.username
+
+    @cached_property
+    def get_notify_token(self):
+        return self.notify_token
 
     def create_backup(self):
         Customer.objects.create(username=self.username,
@@ -134,14 +144,11 @@ class Customer(models.Model):
         try:
             from firebase_admin import auth
             messaging.unsubscribe_from_topic(tokens=[self.notify_token],
-            topic=topic, app=getattr(models, 'app'))
+            topic=topic, app=application)
             auth.delete_user(uid=self.notify_token)
             return super().delete(using=using, keep_parents=keep_parents)
 
         except(firebase_admin._auth_utils.UserNotFoundError,):
             raise NotImplementedError
-
-
-
 
 

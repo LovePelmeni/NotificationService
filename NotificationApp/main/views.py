@@ -16,6 +16,7 @@ from django.db import transaction
 logger = logging.getLogger(__name__)
 
 
+
 class CustomerGenericAPIView(viewsets.ModelViewSet):
 
     queryset = models.Customer.objects.all()
@@ -82,8 +83,7 @@ class NotificationSingleViewSet(viewsets.ModelViewSet):
         if issubclass(exception.__class__, firebase_admin.exceptions.FirebaseError):
             return django.http.HttpResponse(status=status.HTTP_424_FAILED_DEPENDENCY)
 
-        raise exception
-        # return django.http.HttpResponseServerError()
+        return django.http.HttpResponseServerError()
 
     @decorators.action(methods=['get'], detail=True)
     def retrieve(self, request, *args, **kwargs):
@@ -95,6 +95,7 @@ class NotificationSingleViewSet(viewsets.ModelViewSet):
         return django.http.HttpResponse(status=status.HTTP_200_OK,
         content=json.dumps({'notification': notification},
         cls=django.core.serializers.json.DjangoJSONEncoder))
+
 
     @decorators.action(methods=['get'], detail=False)
     def list(self, request, *args, **kwargs):

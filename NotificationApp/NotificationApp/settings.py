@@ -115,6 +115,19 @@ if DEBUG:
 
     WEB_API_KEY = 'AIzaSyC0SMpVHS-v49h15PfgpyG3ihX-_OG79Go'
 
+    RABBITMQ_USER = 'rabbitmq_user'
+    RABBITMQ_PASSWORD = 'rabbitmq_password'
+    RABBITMQ_PORT = '5671'
+    RABBITMQ_HOST = 'localhost'
+
+    RABBITMQ_NODE2_HOST = 'localhost'
+    RABBITMQ_NODE3_HOST = 'localhost'
+
+    RABBITMQ_NODE2_PORT = '5673'
+    RABBITMQ_NODE3_PORT = '5674'
+
+    RABBITMQ_VHOST = 'rabbitmq_vhost'
+
 else:
 
     CORS_ALLOW_ALL_ORIGINS = True
@@ -151,6 +164,55 @@ else:
         }
     }
     WEB_API_KEY = os.environ.get('WEB_API_KEY')
+
+    RABBITMQ_HOST = os.environ.get('RABBITMQ_HOST')
+    RABBITMQ_NODE2_HOST = os.environ.get('RABBITMQ_NODE2_HOST')
+    RABBITMQ_NODE3_HOST = os.environ.get('RABBITMQ_NODE3_HOST')
+
+    RABBITMQ_NODE2_PORT = os.environ.get('RABBITMQ_NODE2_PORT')
+    RABBITMQ_NODE3_PORT = os.environ.get('RABBITMQ_NODE3_PORT')
+    RABBITMQ_VHOST = os.environ.get('RABBITMQ_VHOST')
+
+
+
+LOGGING = {
+
+'version': 1,
+    'disable_existing_loggers': False,
+
+    'formatters': {
+        'file_formatter': {
+            'format': '{levelname} {asctime} {module} {process:d} {thread:d} {message}',
+            'style': '{',
+        },
+    },
+
+    'handlers': {
+        'file_handler': {
+            'level': 'INFO',
+            'class': 'logging.FileHandler',
+            'filename': 'file_handler.log',
+            'formatter': 'file_formatter'
+        },
+        'console_handler': {
+            'level': 'DEBUG',
+            'class': 'logging.StreamHandler',
+        },
+
+        'admin_email_handler': {
+            'level': 'WARNING',
+            'class': 'django.utils.log.AdminEmailHandler',
+        }
+    },
+    'loggers': {
+        'main': {
+            'handlers': ['file_handler', 'console_handler', 'admin_email_handler'],
+            'level': 'DEBUG',
+            'propagate': True,
+        },
+    },
+}
+
 
 # Password validation
 # https://docs.djangoproject.com/en/4.0/ref/settings/#auth-password-validators

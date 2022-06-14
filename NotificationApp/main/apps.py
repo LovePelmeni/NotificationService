@@ -7,3 +7,4 @@ class MainConfig(AppConfig):
 
     def ready(self):
         from . import models
+        from . import rabbitmq
