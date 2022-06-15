@@ -40,6 +40,12 @@ Using Firebase server as notification delivery. (Communicates via HTTP REST and 
 
 `Firebase` - have a project or create a new one.
 
+## Initial Requirements
+#### due to Firebase policy you cannot obtain 'Registry Token', so you need to 
+#### have integrate a JS Firebase Client, before using this API.
+#### (Currently working on this integration so you have to wait.)
+
+
 ## Usage
 
 ```bash
@@ -77,8 +83,8 @@ Using Firebase server as notification delivery. (Communicates via HTTP REST and 
 
 ## If Debug Mode
 
-#### After all procedures that you've made before you need to run.
-   
+#### 1. Set Up Main and Backup databases and add their credentials in `NotificationApp/settings.py`
+
 ```doctest
    # Directory: NotificationService/NotificationApp/
    
@@ -92,7 +98,10 @@ Using Firebase server as notification delivery. (Communicates via HTTP REST and 
    
    
 ```
+## << Deploy As Independent Part of the Service >>
 
+#### this app is basically part of the distributed system I'm currently develop.
+#### So if you want to use it as integration: Go to settings `NotificationApp/settings.py` set `INDEPENDENT_SERVICE` to True.
 
 ## Integration via http
 

@@ -8,10 +8,11 @@ from . import models, exceptions
 from retry import retry
 import logging
 import django.db.utils
+from django.conf import settings
+import json
+
 
 logger = logging.getLogger(__name__)
-
-
 
 
 def configure_rabbitmq_server():
@@ -113,7 +114,7 @@ class CustomerEventMessageHandler(object):
                     try:
                         customer = models.Customer.objects.get(**body)
                         customer.delete()
-                    except(NotImplementedError, firebase_admin._auth_utils.FirebaseError,
+                    except(NotImplementedError, KeyError, AttributeError, TypeError, firebase_admin._auth_utils.FirebaseError,
                     django.db.utils.IntegrityError, django.core.exceptions.ObjectDoesNotExist,) as exception:
 
                         logger.info('FAILED TO ROLLBACK USER CREATION. %s' % exception)
@@ -127,11 +128,11 @@ class CustomerEventMessageHandler(object):
                         username=customer.username, email=customer.email, notify_token=customer.notify_token)
 
                     except(django.core.exceptions.ObjectDoesNotExist,
-                    django.db.utils.IntegrityError, AttributeError) as exception:
+                    django.db.utils.IntegrityError, TypeError, KeyError, AttributeError) as exception:
                         logger.info('CUSTOMER RABBITMQ MESSAGE EXCEPTION. Reason: %s' % exception)
                         raise NotImplementedError
 
-            except(NotImplementedError):
+            except(NotImplementedError,):
                 raise NotImplementedError
 
 
@@ -206,7 +207,7 @@ class CustomerRabbitMQMessageHandler(RabbitMQConnection, CustomerEventMessageHan
             logger.debug('new incoming message has been obtained..')
             properties.headers['sender'] = 'NotificationService'
 
-        except(NotImplementedError,):
+        except(NotImplementedError, AttributeError, TypeError):
             cls.publish_customer_failure_event(body=body, properties=properties)
             logger.debug('published failure event, due to Exception.')
 
@@ -219,11 +220,16 @@ class CustomerRabbitMQMessageHandler(RabbitMQConnection, CustomerEventMessageHan
         """
         / * Publish failure event, suppose other services will react and make a rollback.
         """
-        with cls.connect_to_server() as connection:
+        try:
+            with cls.connect_to_server() as connection:
 
-            connection.basic_publish(exchange=cls.__customer_failure_exchange__,
-            queue=cls.__customer_failure_queue__, body=json.dumps(body), properties=properties)
+                connection.basic_publish(exchange=cls.__customer_failure_exchange__,
+                queue=cls.__customer_failure_queue__, body=json.dumps(body), properties=properties)
+        except(AttributeError, NotImplementedError, KeyError, TypeError):
+            logger.error('Could not Process Failure Event')
 
 
-handler = CustomerRabbitMQMessageHandler()
+if getattr(settings, 'INDEPENDENT_SERVICE'):
+    handler = CustomerRabbitMQMessageHandler()
+
 

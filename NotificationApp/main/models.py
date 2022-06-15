@@ -7,13 +7,15 @@ import django.dispatch.dispatcher
 
 import django.core.exceptions
 from firebase_admin import messaging
+
 import logging
 from django.utils.translation import gettext_lazy as _
+
 from . import certificate, exceptions
 from django.db import transaction
+import asgiref.sync
 
 from cached_property import cached_property
-
 logger = logging.getLogger(__name__)
 
 status_choices = [
@@ -26,7 +28,10 @@ topic = 'notifications'
 from django.conf import settings
 
 credentials = firebase_admin.credentials.Certificate(cert=getattr(certificate, 'CERTIFICATE_CREDENTIALS'))
-application = firebase_admin.initialize_app(credential=credentials)
+try:
+    application = firebase_admin.get_app(name='application')
+except(ValueError,):
+    application = firebase_admin.initialize_app(credential=credentials, name='application')
 
 
 class Notification(models.Model):
@@ -150,5 +155,4 @@ class Customer(models.Model):
 
         except(firebase_admin._auth_utils.UserNotFoundError,):
             raise NotImplementedError
-
 

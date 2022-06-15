@@ -6,5 +6,4 @@ class MainConfig(AppConfig):
     name = 'main'
 
     def ready(self):
-        from . import models
         from . import rabbitmq

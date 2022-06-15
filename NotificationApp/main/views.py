@@ -152,4 +152,3 @@ class NotificationMultiUserViewSet(viewsets.ModelViewSet):
         return django.http.HttpResponse(status=status.HTTP_201_CREATED)
 
 
-

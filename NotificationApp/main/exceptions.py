@@ -2,5 +2,8 @@ class FCMSubscriptionError(BaseException):
     pass
 
 
-class RabbitMQIsNotRunning(Exception):
+class RabbitMQServerIsNotRunning(Exception):
     pass
+
+
+
